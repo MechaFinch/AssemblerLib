@@ -3,7 +3,6 @@ package asmlib.token;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -25,7 +24,7 @@ public class Tokenizer {
     private static char COMMENT_MARKER = ';';
     
     // pattern for detecting numbers
-    private static Pattern numberPattern = Pattern.compile("0x[0-9a-f]+|(0d)?[0-9]+|0o[0-7]+|0b[01]+");
+    private static Pattern numberPattern = Pattern.compile("0x[0-9a-f]*|(0d)?[0-9]*|0o[0-7]+|0b[01]*");
     
     private static HashSet<Character> specialCharacters = new HashSet<Character>("()[],:+-*/".chars()
                                                                                              .mapToObj(c -> (char) c)
@@ -56,8 +55,7 @@ public class Tokenizer {
             lineIndex = -1, // any value that'll make the first operation get a new line
             stringStartIndex = -1;
         
-        String rawLine = "",
-               line = "";
+        String line = "";
         
         StringBuilder currentToken = new StringBuilder();
         
@@ -71,7 +69,7 @@ public class Tokenizer {
                     // did someone forget to close their string
                     if(stringState != StringState.NONE) {
                         // warn, reset current, and try to ignore the quote
-                        System.err.println(String.format("[WARN] [Tokenizer] Unclosed string on line %s: %s", lineNumber, rawLine.substring(stringStartIndex)));
+                        System.err.println(String.format("[WARN] [Tokenizer] Unclosed string on line %s: %s", lineNumber, line.substring(stringStartIndex)));
                         
                         currentToken = new StringBuilder();
                         lineIndex = stringStartIndex + 1;
@@ -100,15 +98,13 @@ public class Tokenizer {
                 currentToken = new StringBuilder();
                 lineIndex = 0;
                 
-                rawLine = lines.get(index);
-                line = rawLine.toLowerCase();
+                line = lines.get(index);
                 
                 if(!INCLUDE_WHITESPACE) {
                     line = line.strip();
-                    rawLine = rawLine.strip(); // indicies need to match
                 }
                 
-                if(VERBOSE) System.out.println("[INFO] [Tokenizer] tokenizing " + rawLine);
+                if(VERBOSE) System.out.println("[INFO] [Tokenizer] tokenizing " + line);
                 
                 // empty line?
                 if(line.equals("")) continue;
@@ -186,7 +182,7 @@ public class Tokenizer {
                 }
                 
                 if(INCLUDE_COMMENTS) {
-                    tokens.add(new CommentToken(rawLine.substring(lineIndex + 1)));
+                    tokens.add(new CommentToken(line.substring(lineIndex + 1)));
                 }
                 
                 lineIndex = -1;
@@ -245,7 +241,7 @@ public class Tokenizer {
     }
     
     /**
-     * Set whether the {@code Tokenizer} includes comments as tokens
+     * Set whether the {@link Tokenizer} includes comments as tokens
      * 
      * @param b {@code true} to include comments, {@code false} to discard. Defaults to {@code false}
      */
@@ -254,7 +250,7 @@ public class Tokenizer {
     }
     
     /**
-     * Set whether the {@code Tokenizer} includes whitespace as tokens
+     * Set whether the {@link Tokenizer} includes whitespace as tokens
      * 
      * @param b {@code true} to include whitespace, {@code false} to discard. Defaults to {@code false}
      */
@@ -263,7 +259,7 @@ public class Tokenizer {
     }
     
     /**
-     * Sets whether the {@code Tokenizer} attempts to handle strings. Strings will be converted into single
+     * Sets whether the {@link Tokenizer} attempts to handle strings. Strings will be converted into single
      * {@link StringToken} tokens if handled, otherwise quotes are handled like any other special character.
      * 
      * @param b {@code true} to handle strings, {@code false} to not. Defaults to {@code true}
@@ -273,7 +269,7 @@ public class Tokenizer {
     }
     
     /**
-     * Sets the marker the {@code Tokenizer} uses for the start of line-end comments
+     * Sets the marker the {@link Tokenizer} uses for the start of line-end comments
      * 
      * @param c Character to use. Default value {@code //}
      */
@@ -282,7 +278,7 @@ public class Tokenizer {
     }
     
     /**
-     * Sets whether the {@code Tokenizer} uses verbose console output
+     * Sets whether the {@link Tokenizer} uses verbose console output
      * 
      * @param b {@code true} to use verbose console output, {@code false} otherwise
      */
