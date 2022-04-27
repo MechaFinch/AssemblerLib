@@ -9,6 +9,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.logging.Logger;
 
 import asmlib.lex.symbols.*;
 import asmlib.token.tokens.*;
@@ -31,27 +32,24 @@ import asmlib.token.tokens.*;
  */
 public class Lexer {
     
-    enum Case {
-        UPPERCASE,
-        LOWERCASE
-    }
+    private static Logger LOG = Logger.getLogger(Lexer.class.getName());
     
     // seperators are necessary for lexing but not necessarily for parsing
     private boolean INCLUDE_SEPERATORS;
     
     private int lineNumber;
     
-    private String lastOuterLabel;
+    private String lastOuterLabel,
+                   labelPrefix;
     
     private HashSet<String> mnemonics,
                             registers,
                             directives,
                             sizes,
+                            expressive,
                             errors; // what types of errors occurred
     
     private LinkedList<Token> tokens;
-    
-    private final Case RESERVED_WORD_CASE;
     
     /**
      * Create a {@code Lexer} with the given reserved words
@@ -60,16 +58,19 @@ public class Lexer {
      * @param registers register names
      * @param directives directive names
      * @param sizes size markers
+     * @param expressive reserved words which are allowed to be part of an {@link Expression}
      * @param reservedWordCase case used by the reserved words
+     * @param labelPrefix string to prefix all labels with
      * @param serperators whether to include seperators as tokens
      */
-    public Lexer(Collection<String> mnemonics, Collection<String> registers, Collection<String> directives, Collection<String> sizes, Case reservedWordCase, boolean seperators) {
+    public Lexer(Collection<String> mnemonics, Collection<String> registers, Collection<String> directives, Collection<String> sizes, Collection<String> expressive, String labelPrefix, boolean seperators) {
         this.mnemonics = new HashSet<>(mnemonics);
         this.registers = new HashSet<>(registers);
         this.directives = new HashSet<>(directives);
         this.sizes = new HashSet<>(sizes);
+        this.expressive = new HashSet<>(expressive);
         
-        this.RESERVED_WORD_CASE = reservedWordCase;
+        this.labelPrefix = labelPrefix;
         this.INCLUDE_SEPERATORS = seperators;
         
         this.lineNumber = 0;
@@ -84,38 +85,34 @@ public class Lexer {
     /**
      * Create a {@code Lexer} with the resreved words given in a file
      * <p>
-     * The file should first have the case ("uppercase" or "lowercase"), then sections for each
-     * type of reserved word marked by {@code ::mnemonics::}, {@code ::registers::}, and {@code ::directives::}
+     * The file should have sections for each type of reserved word marked by {@code ::mnemonics::},
+     * {@code ::registers::}, and {@code ::directives::}
      * </p>
      * 
      * @param f File
+     * @param labelPrefix string to prefix all labels in
      * @param serperators whether to include seperators as symbols
      */
-    public Lexer(File f, boolean seperators) throws IOException {
+    public Lexer(File f, String labelPrefix, boolean seperators) throws IOException {
+        this.labelPrefix = labelPrefix;
         this.INCLUDE_SEPERATORS = seperators;
         
         this.mnemonics = new HashSet<>();
         this.registers = new HashSet<>();
         this.directives = new HashSet<>();
         this.sizes = new HashSet<>();
+        this.expressive = new HashSet<>();
         
         // read that file
         try(BufferedReader br = new BufferedReader(new FileReader(f))) {
-            // header
-            this.RESERVED_WORD_CASE = switch(br.readLine().toLowerCase()) {
-                case "uppercase"    -> Case.UPPERCASE;
-                case "lowercase"    -> Case.LOWERCASE;
-                default             -> {
-                    System.err.println("[ERROR] [Lexer] Invalid case header. Reserved word file header bust be \"uppercase\" or \"lowercase\"");
-                    throw new IllegalArgumentException("Invalid case header"); // we can't lex anything without this info so crash immediatelys
-                }
-            };
-            
+            LOG.fine("Loading reserved words from file " + f);
+                        
             enum Category {
                 MNEMONICS,
                 REGISTERS,
                 DIRECTIVES,
-                SIZES
+                SIZES,
+                EXPRESSIVE
             }
             
             // first category
@@ -124,8 +121,9 @@ public class Lexer {
                 case "::registers::"    -> Category.REGISTERS;
                 case "::directives::"   -> Category.DIRECTIVES;
                 case "::sizes::"        -> Category.SIZES;
+                case "::expressive::"   -> Category.EXPRESSIVE;
                 default                 -> {
-                    System.err.println("[ERROR] [Lexer] Missing first category. Reserved word file must have a category after its header.");
+                    LOG.severe("Missing first category. Reserved word file must have a category after its header.");
                     throw new IllegalArgumentException("Missing first category");
                 }
             };
@@ -133,16 +131,31 @@ public class Lexer {
             // the rest
             String line = "";
             while((line = br.readLine()) != null) {
+                LOG.finest(line);
                 if(line.equals("::mnemonics::")) {
                     cat = Category.MNEMONICS;
+                    
+                    LOG.finest("Loading mnemonics category");
                 } else if(line.equals("::registers::")) {
                     cat = Category.REGISTERS;
+                    
+                    LOG.finest("Loading registers category");
                 } else if(line.equals("::directives::")) {
                     cat = Category.DIRECTIVES;
+                    
+                    LOG.finest("Loading directories category");
                 } else if(line.equals("::sizes::")) {
                     cat = Category.SIZES;
+                    
+                    LOG.finest("Loading directories category");
+                } else if(line.equals("::expressive::")) {
+                    cat = Category.EXPRESSIVE;
+                    
+                    LOG.finest("Loading expressive category");
                 } else {
-                    if(this.RESERVED_WORD_CASE == Case.UPPERCASE) line = line.toUpperCase();
+                    line = line.toUpperCase();
+                    
+                    LOG.finer("Adding " + cat + " value " + line);
                     
                     switch(cat) {
                         case DIRECTIVES:
@@ -159,6 +172,10 @@ public class Lexer {
                         
                         case SIZES:
                             this.sizes.add(line);
+                            break;
+                            
+                        case EXPRESSIVE:
+                            this.expressive.add(line);
                             break;
                     }
                 }
@@ -177,21 +194,31 @@ public class Lexer {
      * issues warnings for duplicate reserved words
      */
     private void validateReservedWords() {
+        LOG.fine("Validating reserved words");
+        
+        // check duplicates
         this.mnemonics.forEach(s -> {
             if(this.registers.contains(s) || this.directives.contains(s) || this.sizes.contains(s)) {
-                System.err.println(String.format("[WARN] [Lexer] Duplicate reserved word \"%s\" will be treated as a mnemonic due to check order", s));
+                LOG.warning(String.format("Duplicate reserved word \"%s\" will be treated as a mnemonic due to check order", s));
             }
         });
         
         this.registers.forEach(s -> {
             if(this.directives.contains(s) || this.sizes.contains(s)) {
-                System.err.println(String.format("[WARN] [Lexer] Duplicate reserved word \"%s\" will be treated as a register due to check order", s));
+                LOG.warning(String.format("Duplicate reserved word \"%s\" will be treated as a register due to check order", s));
             }
         });
         
         this.directives.forEach(s -> {
             if(this.sizes.contains(s)) {
-                System.err.println(String.format("[WARN] [Lexer] Duplicate reserved word \"%s\" will be treated as a directive due to check order", s));
+                LOG.warning(String.format("Duplicate reserved word \"%s\" will be treated as a directive due to check order", s));
+            }
+        });
+        
+        // check that expressive contains only reserved words
+        this.expressive.forEach(s -> {
+            if(!(this.mnemonics.contains(s) || this.registers.contains(s) || this.directives.contains(s) || this.sizes.contains(s))) {
+                LOG.warning(String.format("Word \"%s\" is marked as expressive but is not reserevd", s));
             }
         });
     }
@@ -203,6 +230,8 @@ public class Lexer {
      * @return List of symbols
      */
     public List<Symbol> lex(List<Token> ts) {
+        LOG.fine("Begin lexing");
+        
         // reset state
         this.lineNumber = 0;
         this.lastOuterLabel = "";
@@ -212,10 +241,12 @@ public class Lexer {
         
         // consume all tokens
         while(hasNext()) {
-            Symbol s = lexNextToken();
+            Symbol s = lexNextToken(false);
             
             if(s != null) symbols.add(s);
         }
+        
+        LOG.fine("Finished consuming symbols. " + this.errors.size() + " errors encountered");
         
         // if we had any errors, bundle them into an exception
         if(this.errors.size() != 0) {
@@ -236,8 +267,10 @@ public class Lexer {
      * 
      * @return resulting {@link Symbol}
      */
-    private Symbol lexNextToken() {
-        return switch(this.tokens.poll()) {
+    private Symbol lexNextToken(boolean inExpression) {
+        LOG.finer("Lexing token " + this.tokens.peek());
+        
+        Symbol s = switch(this.tokens.poll()) {
             // direct conversions
             case StringToken stt    -> new StringSymbol(stt.str());
             case NumberToken nut    -> new Constant(nut.value());
@@ -254,11 +287,40 @@ public class Lexer {
             
             // invalid
             case Token t            -> {
-                System.out.println(String.format("[ERROR] [Lexer] Unknown token %s on line %s", t, this.lineNumber));
+                LOG.severe(String.format("Unknown token %s on line %s", t, this.lineNumber));
                 this.errors.add("unknown tokens");
                 yield null;
             }
         };
+        
+        if(s == null) return null;
+        
+        // if we find a symbol that might be part of an expression, start one
+        if(!inExpression) {
+            boolean isExpressive = switch(s) {
+                case Constant c         -> true;
+                case Name n             -> true;
+                case StringSymbol ss    -> true;
+                
+                case Mnemonic m         -> this.expressive.contains(m.name());
+                case Register r         -> this.expressive.contains(r.name());
+                case Directive d        -> this.expressive.contains(d.name());
+                case Size s2            -> this.expressive.contains(s2.name());
+                
+                default                 -> false;
+            };
+            
+            if(isExpressive) {
+                Expression e = lexExpression(s, false);
+                
+                // don't wrap single symbols
+                if(e.symbols().size() == 1) return e.symbols().get(0);
+                
+                return e;
+            }
+        }
+        
+        return s;
     }
     
     /**
@@ -269,21 +331,29 @@ public class Lexer {
      * @return 
      */
     private Symbol lexNameToken(NameToken nt) {
-        String lt = (this.RESERVED_WORD_CASE == Case.UPPERCASE) ? nt.text().toUpperCase() : nt.text().toLowerCase();
+        String lt = nt.text().toUpperCase();
         
         // is it a reserved word
         if(this.mnemonics.contains(lt)) {
+            LOG.finest(nt + " was mnemonic");
+            
             return new Mnemonic(lt);
         } else if(this.registers.contains(lt)) {
+            LOG.finest(nt + " was register");
+            
             return new Register(lt);
         } else if(this.directives.contains(lt)) {
+            LOG.finest(nt + " was directive");
+            
             return new Directive(lt);
         } else if(this.sizes.contains(lt)) {
+            LOG.finest(nt + " was size");
+            
             return new Size(lt);
         }
         
         // apply outer label
-        String name = nt.text().startsWith(".") ? this.lastOuterLabel + nt.text() : nt.text();
+        String name = this.labelPrefix + (nt.text().startsWith(".") ? this.lastOuterLabel + nt.text() : nt.text());
         
         // is this a label or does it reference one
         if(hasNext() && this.tokens.peek() instanceof SpecialToken st && st.character() == ':') { // pattern matching is pretty cool
@@ -292,6 +362,7 @@ public class Lexer {
             // consume the label marker too
             this.tokens.poll();
             
+            LOG.finest(nt + " was label");
             return new Label(name);
         } else {
             return new Name(name);
@@ -308,7 +379,7 @@ public class Lexer {
     private Symbol lexSpecialToken(SpecialToken st) {
         return switch(st.character()) {
             // groups
-            case '('    -> lexExpression();
+            case '('    -> lexExpression(null, true);
             case '['    -> lexMemory();
             
             // conversions
@@ -316,12 +387,12 @@ public class Lexer {
             
             // errors
             case ')'    -> {
-                System.err.println(String.format("[ERROR] [Lexer] Unmatched closing parenthesis on line %s", this.lineNumber));
+                LOG.severe(String.format("Unmatched closing parenthesis on line %s", this.lineNumber));
                 this.errors.add("unmatched parentheses");
                 yield null;
             }
             case ']'    -> {
-                System.err.println(String.format("[ERROR] [Lexer] Unmatched closing bracket on line %s", this.lineNumber));
+                LOG.severe(String.format("Unmatched closing bracket on line %s", this.lineNumber));
                 this.errors.add("unmatched brackets");
                 yield null;
             }
@@ -336,17 +407,31 @@ public class Lexer {
      * 
      * @return
      */
-    private Symbol lexExpression() {
+    private Expression lexExpression(Symbol firstSymbol, boolean parenthesized) {
         ArrayList<Symbol> symbols = new ArrayList<>();
         
-        // lex away
-        while(!(this.tokens.peek() instanceof SpecialToken st && st.character() == ')')) {
-            symbols.add(lexNextToken());
+        if(firstSymbol != null) {
+            symbols.add(firstSymbol);
+            LOG.finer("Lexing expression starting with " + firstSymbol);
+        } else {
+            LOG.finer("Lexing expression");
         }
         
-        // consume closing parentheses
-        this.tokens.poll();
+        // lex away
+        if(parenthesized) {
+            while(!(this.tokens.peek() instanceof SpecialToken st && st.character() == ')')) {
+                symbols.add(lexNextToken(true));
+            }
+            
+            // consume closing parentheses
+            this.tokens.poll();
+        } else {
+            while(!((this.tokens.peek() instanceof SpecialToken st && st.character() == ',') || (this.tokens.peek() instanceof LineToken))) {
+                symbols.add(lexNextToken(true));
+            }
+        }
         
+        LOG.finer("Expression finshed");
         return new Expression(symbols);
     }
     
@@ -355,17 +440,19 @@ public class Lexer {
      * 
      * @return
      */
-    private Symbol lexMemory() {
+    private Memory lexMemory() {
+        LOG.finer("Lexing memory");
         ArrayList<Symbol> symbols = new ArrayList<>();
         
         // lex away
         while(!(this.tokens.peek() instanceof SpecialToken st && st.character() == ']')) {
-            symbols.add(lexNextToken());
+            symbols.add(lexNextToken(true));
         }
         
         // consume closing bracket
         this.tokens.poll();
         
+        LOG.finer("Memory finished");
         return new Memory(symbols);
     }
     
@@ -376,6 +463,15 @@ public class Lexer {
      */
     private boolean hasNext() {
         return !this.tokens.isEmpty();
+    }
+    
+    /**
+     * Sets the string to prefix labels with
+     * 
+     * @param s
+     */
+    public void setLabelPrefix(String s) {
+        this.labelPrefix = s;
     }
     
     /**

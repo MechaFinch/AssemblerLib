@@ -3,6 +3,7 @@ package asmlib.token;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -16,10 +17,11 @@ import asmlib.token.tokens.*;
  */
 public class Tokenizer {
     
+    private static Logger LOG = Logger.getLogger(Tokenizer.class.getName());
+    
     private static boolean INCLUDE_COMMENTS = false,
                            INCLUDE_WHITESPACE = false,
-                           HANDLE_STRINGS = true,
-                           VERBOSE = false;
+                           HANDLE_STRINGS = true;
     
     private static char COMMENT_MARKER = ';';
     
@@ -42,6 +44,7 @@ public class Tokenizer {
      * @param lines
      */
     public static List<Token> tokenize(List<String> lines) {
+        LOG.fine("Begin tokenizing");
         ArrayList<Token> tokens = new ArrayList<>(lines.size() * 2);
         
         /*
@@ -61,7 +64,7 @@ public class Tokenizer {
         
         StringState stringState = StringState.NONE;
         
-        while(true) {
+        while(true) {            
             // next line?
             if(lineIndex >= line.length() || lineIndex < 0) {
                 // do we have a token from the end of the previous line
@@ -69,7 +72,8 @@ public class Tokenizer {
                     // did someone forget to close their string
                     if(stringState != StringState.NONE) {
                         // warn, reset current, and try to ignore the quote
-                        System.err.println(String.format("[WARN] [Tokenizer] Unclosed string on line %s: %s", lineNumber, line.substring(stringStartIndex)));
+                        LOG.warning(String.format("Unclosed string on line %s: %s", lineNumber, line.substring(stringStartIndex)));
+                        LOG.finest("Retokenizing from start of string");
                         
                         currentToken = new StringBuilder();
                         lineIndex = stringStartIndex + 1;
@@ -81,6 +85,8 @@ public class Tokenizer {
                     tokens.add(convertToToken(currentToken, lineNumber));
                 }
                 
+                LOG.finest("Ending line");
+                
                 index++;
                 lineNumber++;
                 
@@ -90,9 +96,11 @@ public class Tokenizer {
                 // next line
                 // if the last line was empty, remove its LineToken
                 if(tokens.size() > 0 && tokens.get(tokens.size() - 1) instanceof LineToken) {
+                    LOG.finest("Removed empty line");
                     tokens.remove(tokens.size() - 1);
                 }
                 
+                LOG.finest("Added line marker " + lineNumber);
                 tokens.add(new LineToken(lineNumber));
                 
                 currentToken = new StringBuilder();
@@ -104,7 +112,7 @@ public class Tokenizer {
                     line = line.strip();
                 }
                 
-                if(VERBOSE) System.out.println("[INFO] [Tokenizer] tokenizing " + line);
+                LOG.finer("Tokenizing \"" + line + "\"");
                 
                 // empty line?
                 if(line.equals("")) continue;
@@ -121,10 +129,12 @@ public class Tokenizer {
                         tokens.add(convertToToken(currentToken, lineNumber));
                     }
                     
+                    LOG.finest("Starting double-quoted string");
                     stringState = StringState.DOUBLE;
                     stringStartIndex = lineIndex;
                 } else {
                     // end string
+                    LOG.finest("Ending double-quoted string \"" + currentToken.toString() + "\"");
                     tokens.add(new StringToken(currentToken.toString()));
                     
                     stringState = StringState.NONE;
@@ -140,10 +150,12 @@ public class Tokenizer {
                         tokens.add(convertToToken(currentToken, lineNumber));
                     }
                     
+                    LOG.finest("Starting single-quoted string");
                     stringState = StringState.SINGLE;
                     stringStartIndex = lineIndex;
                 } else {
                     // end string
+                    LOG.finest("Ending single-quoted string '" + currentToken.toString() + "'");
                     tokens.add(new StringToken(currentToken.toString()));
                     
                     stringState = StringState.NONE;
@@ -182,6 +194,7 @@ public class Tokenizer {
                 }
                 
                 if(INCLUDE_COMMENTS) {
+                    LOG.finest("Added comment token " + line.substring(lineIndex + 1));
                     tokens.add(new CommentToken(line.substring(lineIndex + 1)));
                 }
                 
@@ -192,6 +205,7 @@ public class Tokenizer {
             }
         }
         
+        LOG.fine("Completed successfully");
         return tokens;
     }
     
@@ -206,26 +220,34 @@ public class Tokenizer {
         // try to make a number
         String s = word.toLowerCase();
         if(numberPattern.matcher(s).matches()) {
+            NumberToken t;
+            
             try {
                 // decimal
-                if(s.length() < 3) return new NumberToken(Integer.parseInt(s));
+                if(s.length() < 3) {
+                    t = new NumberToken(Integer.parseInt(s));
+                } else {
+                    // can have base identifier
+                    String bid = s.substring(0, 2),
+                           sv = s.substring(2);
+                    
+                    t = new NumberToken(switch(bid) {
+                        case "0b"   -> Integer.parseInt(sv, 2);
+                        case "0o"   -> Integer.parseInt(sv, 8);
+                        case "0d"   -> Integer.parseInt(sv);
+                        case "0x"   -> Integer.parseInt(sv, 16);
+                        default     -> Integer.parseInt(s);
+                    });
+                }
                 
-                // can have base identifier
-                String bid = s.substring(0, 2),
-                       sv = s.substring(2);
-                
-                return new NumberToken(switch(bid) {
-                    case "0b"   -> Integer.parseInt(sv, 2);
-                    case "0o"   -> Integer.parseInt(sv, 8);
-                    case "0d"   -> Integer.parseInt(sv);
-                    case "0x"   -> Integer.parseInt(sv, 16);
-                    default     -> Integer.parseInt(s);
-                });
+                LOG.finest("Converted " + word + " to number " + t.value());
+                return t;
             } catch(NumberFormatException e) {
-                System.err.println(String.format("[WARN] [Tokenizer] Malformed constant on line %s: \"%s\"", ln, word));
+                LOG.warning(String.format("Malformed constant on line %s: \"%s\"", ln, word));
             }
         }
         
+        LOG.finest("Converted " + word + " to name");
         return new NameToken(word);
     }
     
@@ -275,14 +297,5 @@ public class Tokenizer {
      */
     public static void setCommentMarker(char c) {
         COMMENT_MARKER = c;
-    }
-    
-    /**
-     * Sets whether the {@link Tokenizer} uses verbose console output
-     * 
-     * @param b {@code true} to use verbose console output, {@code false} otherwise
-     */
-    public static void setVerbose(boolean b) {
-        VERBOSE = b;
     }
 }
