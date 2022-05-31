@@ -7,6 +7,6 @@ import java.util.ArrayList;
  * 
  * @author Mechafinch
  */
-public record Memory(ArrayList<Symbol> symbols) implements SymbolGroup {
+public record MemorySymbol(ArrayList<Symbol> symbols) implements SymbolGroup {
     
 }

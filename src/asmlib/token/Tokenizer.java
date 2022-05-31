@@ -28,9 +28,9 @@ public class Tokenizer {
     // pattern for detecting numbers
     private static Pattern numberPattern = Pattern.compile("0x[0-9a-f]*|(0d)?[0-9]*|0o[0-7]+|0b[01]*");
     
-    private static HashSet<Character> specialCharacters = new HashSet<Character>("()[],:+-*/".chars()
-                                                                                             .mapToObj(c -> (char) c)
-                                                                                             .collect(Collectors.toList())); // yeah
+    private static HashSet<Character> specialCharacters = new HashSet<Character>("()[],:+-*/<>".chars()
+                                                                                               .mapToObj(c -> (char) c)
+                                                                                               .collect(Collectors.toList())); // yeah
     
     private enum StringState {
         NONE,

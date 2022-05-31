@@ -7,6 +7,6 @@ import java.util.ArrayList;
  * 
  * @author Mechafinch
  */
-public record Expression(ArrayList<Symbol> symbols) implements SymbolGroup {
+public record ExpressionSymbol(ArrayList<Symbol> symbols) implements SymbolGroup {
     
 }

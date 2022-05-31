@@ -105,10 +105,10 @@ public class Relocator {
             for(String s : obj.incomingReferences.keySet()) {
                 LOG.finer("Relocating " + s + " in " + obj.name);
                 
+                int addrSize = obj.incomingReferenceWidths.get(s),
+                    addr = this.relocatedReferences.get(s);
+                
                 for(int i : obj.incomingReferences.get(s)) {
-                    int addrSize = obj.incomingReferenceWidths.get(s),
-                        addr = this.relocatedReferences.get(s);
-                    
                     LOG.finest(String.format("Placed %04X at %04X", addr, i + offset));
                     
                     for(int a = 0; a < addrSize; a++) {

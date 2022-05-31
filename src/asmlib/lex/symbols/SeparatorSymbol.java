@@ -5,6 +5,6 @@ package asmlib.lex.symbols;
  * 
  * @author Mechafinch
  */
-public record Separator() implements Symbol {
+public record SeparatorSymbol() implements Symbol {
     
 }

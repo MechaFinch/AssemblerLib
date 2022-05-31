@@ -5,6 +5,6 @@ package asmlib.lex.symbols;
  * 
  * @author Mechafinch
  */
-public record Whitespace() implements Symbol {
+public record WhitespaceSymbol() implements Symbol {
     
 }

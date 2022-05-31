@@ -6,6 +6,6 @@ package asmlib.lex.symbols;
  * @param name
  * @author Mechafinch
  */
-public record Size(String name) implements Symbol {
+public record SizeSymbol(String name) implements Symbol {
     
 }

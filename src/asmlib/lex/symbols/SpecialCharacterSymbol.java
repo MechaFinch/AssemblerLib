@@ -6,6 +6,6 @@ package asmlib.lex.symbols;
  * @param character
  * @author Mechafinch
  */
-public record SpecialCharacter(char character) implements Symbol {
+public record SpecialCharacterSymbol(char character) implements Symbol {
     
 }

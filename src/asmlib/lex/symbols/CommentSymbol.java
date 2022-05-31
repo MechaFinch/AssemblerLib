@@ -6,6 +6,6 @@ package asmlib.lex.symbols;
  * @param comment
  * @author Mechafinch
  */
-public record Comment(String comment) implements Symbol {
+public record CommentSymbol(String comment) implements Symbol {
     
 }

@@ -6,6 +6,6 @@ package asmlib.lex.symbols;
  * @param lineNumber
  * @author Mechafinch
  */
-public record LineMarker(int lineNumber) implements Symbol {
+public record LineMarkerSymbol(int lineNumber) implements Symbol {
     
 }

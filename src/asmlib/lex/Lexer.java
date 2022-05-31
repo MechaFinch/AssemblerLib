@@ -18,11 +18,11 @@ import asmlib.token.tokens.*;
  * A {@code Lexer} takes an ordered list of tokens and groups them into meaningful {@link Symbol}s
  * according to information from the user.
  * <p>
- * Converts {@link NameToken} into {@link Mnemonic}, {@link Register}, {@link Directive}, or {@link Size}
- * according to reserved words, or {@link Label} or {@link Name} based on context.
+ * Converts {@link NameToken} into {@link MnemonicSymbol}, {@link RegisterSymbol}, {@link DirectiveSymbol}, or {@link SizeSymbol}
+ * according to reserved words, or {@link LabelSymbol} or {@link NameSymbol} based on context.
  * </p><p>
- * {@link SpecialToken} with parentheses and square brackets respectively are used to group {@link Expression}
- * and {@link Memory}
+ * {@link SpecialToken} with parentheses and square brackets respectively are used to group {@link ExpressionSymbol}
+ * and {@link MemorySymbol}
  * </p><p>
  * {@link StringToken}, {@link NumberToken}, {@link LineToken}, {@link CommentToken}, and {@link WhitespaceToken}
  * are converted to their respective {@link Symbol}
@@ -58,7 +58,7 @@ public class Lexer {
      * @param registers register names
      * @param directives directive names
      * @param sizes size markers
-     * @param expressive reserved words which are allowed to be part of an {@link Expression}
+     * @param expressive reserved words which are allowed to be part of an {@link ExpressionSymbol}
      * @param reservedWordCase case used by the reserved words
      * @param labelPrefix string to prefix all labels with
      * @param serperators whether to include seperators as tokens
@@ -273,12 +273,12 @@ public class Lexer {
         Symbol s = switch(this.tokens.poll()) {
             // direct conversions
             case StringToken stt    -> new StringSymbol(stt.str());
-            case NumberToken nut    -> new Constant(nut.value());
-            case CommentToken ct    -> new Comment(ct.comment());
-            case WhitespaceToken wt -> new Whitespace();
+            case NumberToken nut    -> new ConstantSymbol(nut.value());
+            case CommentToken ct    -> new CommentSymbol(ct.comment());
+            case WhitespaceToken wt -> new WhitespaceSymbol();
             case LineToken lt       -> {
                 this.lineNumber = lt.lineNumber();
-                yield new LineMarker(lt.lineNumber());
+                yield new LineMarkerSymbol(lt.lineNumber());
             }
             
             // call respective functions
@@ -298,20 +298,20 @@ public class Lexer {
         // if we find a symbol that might be part of an expression, start one
         if(!inExpression) {
             boolean isExpressive = switch(s) {
-                case Constant c         -> true;
-                case Name n             -> true;
+                case ConstantSymbol c         -> true;
+                case NameSymbol n             -> true;
                 case StringSymbol ss    -> true;
                 
-                case Mnemonic m         -> this.expressive.contains(m.name());
-                case Register r         -> this.expressive.contains(r.name());
-                case Directive d        -> this.expressive.contains(d.name());
-                case Size s2            -> this.expressive.contains(s2.name());
+                case MnemonicSymbol m         -> this.expressive.contains(m.name());
+                case RegisterSymbol r         -> this.expressive.contains(r.name());
+                case DirectiveSymbol d        -> this.expressive.contains(d.name());
+                case SizeSymbol s2            -> this.expressive.contains(s2.name());
                 
                 default                 -> false;
             };
             
             if(isExpressive) {
-                Expression e = lexExpression(s, false);
+                ExpressionSymbol e = lexExpression(s, false);
                 
                 // don't wrap single symbols
                 if(e.symbols().size() == 1) return e.symbols().get(0);
@@ -337,19 +337,19 @@ public class Lexer {
         if(this.mnemonics.contains(lt)) {
             LOG.finest(nt + " was mnemonic");
             
-            return new Mnemonic(lt);
+            return new MnemonicSymbol(lt);
         } else if(this.registers.contains(lt)) {
             LOG.finest(nt + " was register");
             
-            return new Register(lt);
+            return new RegisterSymbol(lt);
         } else if(this.directives.contains(lt)) {
             LOG.finest(nt + " was directive");
             
-            return new Directive(lt);
+            return new DirectiveSymbol(lt);
         } else if(this.sizes.contains(lt)) {
             LOG.finest(nt + " was size");
             
-            return new Size(lt);
+            return new SizeSymbol(lt);
         }
         
         // apply outer label
@@ -363,14 +363,14 @@ public class Lexer {
             this.tokens.poll();
             
             LOG.finest(nt + " was label");
-            return new Label(name);
+            return new LabelSymbol(name);
         } else {
-            return new Name(name);
+            return new NameSymbol(name);
         }
     }
     
     /**
-     * Either convert a {@link SpecialToken} directly to a {@link SpecialCharacter} or does something
+     * Either convert a {@link SpecialToken} directly to a {@link SpecialCharacterSymbol} or does something
      * based off what character it is 
      * 
      * @param st special token
@@ -383,7 +383,7 @@ public class Lexer {
             case '['    -> lexMemory();
             
             // conversions
-            case ','    -> this.INCLUDE_SEPERATORS ? new Separator() : null;
+            case ','    -> this.INCLUDE_SEPERATORS ? new SeparatorSymbol() : null;
             
             // errors
             case ')'    -> {
@@ -398,16 +398,16 @@ public class Lexer {
             }
             
             // default
-            default     -> new SpecialCharacter(st.character());
+            default     -> new SpecialCharacterSymbol(st.character());
         };
     }
     
     /**
-     * Lexes symbols in parentheses and groups them into an {@link Expression}
+     * Lexes symbols in parentheses and groups them into an {@link ExpressionSymbol}
      * 
      * @return
      */
-    private Expression lexExpression(Symbol firstSymbol, boolean parenthesized) {
+    private ExpressionSymbol lexExpression(Symbol firstSymbol, boolean parenthesized) {
         ArrayList<Symbol> symbols = new ArrayList<>();
         
         if(firstSymbol != null) {
@@ -432,15 +432,15 @@ public class Lexer {
         }
         
         LOG.finer("Expression finshed");
-        return new Expression(symbols);
+        return new ExpressionSymbol(symbols);
     }
     
     /**
-     * Lexes symbols and groups them into a {@link Memory} as best it can
+     * Lexes symbols and groups them into a {@link MemorySymbol} as best it can
      * 
      * @return
      */
-    private Memory lexMemory() {
+    private MemorySymbol lexMemory() {
         LOG.finer("Lexing memory");
         ArrayList<Symbol> symbols = new ArrayList<>();
         
@@ -453,7 +453,7 @@ public class Lexer {
         this.tokens.poll();
         
         LOG.finer("Memory finished");
-        return new Memory(symbols);
+        return new MemorySymbol(symbols);
     }
     
     /**
