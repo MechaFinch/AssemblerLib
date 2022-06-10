@@ -1,8 +1,11 @@
 package asmlib.token;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -68,13 +71,17 @@ public class Tokenizer {
         
         StringState stringState = StringState.NONE;
         
-        // definition pass if enabled
         if(HANDLE_DEFINITIONS) {
+            // Scan file to record definitions
+            Map<String, String> defs = new HashMap<>();
+            List<String> keys = new ArrayList<>();
+            
+            LOG.fine("Discovering definitions");
             for(int i = 0; i < lines.size(); i++) {
                 String s = lines.get(i);
                 
                 if(s.toLowerCase().startsWith(DEFINITION_MARKER)) {
-                    String[] def = s.split(" ");
+                    String[] def = s.split(" "); // no ez iterator because line numbers
                     
                     if(def.length < 3) {
                         LOG.warning(String.format("Malformed definition on line %s. Ignoring.", i + 1));
@@ -85,23 +92,68 @@ public class Tokenizer {
                     String k = def[1],
                            v = "";
                     
+                    if(keys.contains(k)) {
+                        LOG.warning(String.format("Duplicate definition on line %s. Ignoring.", i + 1));
+                        continue;
+                    }
+                    
                     for(int j = 2; j < def.length; j++) v += def[j] + " ";
                     v = v.substring(0, v.length() - 1); // trailing space
                     
+                    LOG.finer("Definition recorded: " + k + " = " + v);
+                    
+                    defs.put(k, v);
+                    keys.add(k);
+                    lines.set(i, ""); // clear line in main file
+                }
+            }
+            
+            Collections.sort(keys, (a, b) -> (b.length() - a.length()));
+            
+            // Apply definitions to themselves
+            LOG.fine("Applying nested definitions");
+            boolean modified = true;
+            
+            while(modified) {
+                // each key applied to each other until there's no change
+                modified = false;
+                
+                for(int i = 0; i < keys.size(); i++) {
+                    String k = keys.get(i),
+                           v = defs.get(k);
+                    
                     LOG.finer("Replacing " + k + " with " + v);
                     
-                    // replace
-                    for(int j = i + 1; j < lines.size(); j++) {
-                        String ln = lines.get(j);
-                        if(ln.contains(k)) {
-                            LOG.finest("Instance on line " + (j + 1));
+                    for(int j = 0; j < keys.size(); j++) {
+                        if(i == j) continue;
+                        
+                        String dk = keys.get(j),
+                               dv = defs.get(dk);
+                        
+                        if(dv.contains(k)) {
+                            LOG.finest("Instance on line " + (i + 1));
                             
-                            lines.set(j, ln.replaceAll(k, v));
+                            modified = true;
+                            defs.put(dk, dv.replace(k, v));
                         }
                     }
+                }
+            }
+            
+            // Apply definitions to the rest of the file
+            for(String k : keys) {
+                String v = defs.get(k);
+                
+                LOG.finer("Replacing " + k + " with " + v);
+                
+                for(int i = 0; i < lines.size(); i++) {
+                    String ln = lines.get(i);
                     
-                    // remove definition line by clearing it
-                    lines.set(i, "");
+                    if(ln.contains(k)) {
+                        LOG.finest("Instance on line " + (i + 1));
+                        
+                        lines.set(i, ln.replace(k, v));
+                    }
                 }
             }
         }
@@ -334,8 +386,10 @@ public class Tokenizer {
     
     /**
      * Sets whether the {@link Tokenizer} handles definition statements. Lines beginning with the definition
-     * marker (case sensitive, default value {@code %define}) will be interpreted as definitions and
-     * will be applied in-order to subsequent lines with a simple find-replace.
+     * marker (case sensitive, default value {@code %define}) will be interpreted as definitions. The
+     * file is first scanned for definitions, which are first applied to each other until they don't
+     * change, and then to the rest of the file. When applied, definitions are processed in order of
+     * key length such that definitions with the same prefix are properly applied. 
      * 
      * @param b {@code true} to handle definitions, {@code false} to not. Defaults to {@code true}
      */
