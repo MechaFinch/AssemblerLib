@@ -21,9 +21,12 @@ public class Tokenizer {
     
     private static boolean INCLUDE_COMMENTS = false,
                            INCLUDE_WHITESPACE = false,
-                           HANDLE_STRINGS = true;
+                           HANDLE_STRINGS = true,
+                           HANDLE_DEFINITIONS = true;
     
     private static char COMMENT_MARKER = ';';
+    
+    private static String DEFINITION_MARKER = "%define";
     
     // pattern for detecting numbers
     private static Pattern numberPattern = Pattern.compile("0x[0-9a-f]*|(0d)?[0-9]*|0o[0-7]+|0b[01]*");
@@ -45,6 +48,7 @@ public class Tokenizer {
      */
     public static List<Token> tokenize(List<String> lines) {
         LOG.fine("Begin tokenizing");
+        lines = new ArrayList<>(lines); // ensure mutability
         ArrayList<Token> tokens = new ArrayList<>(lines.size() * 2);
         
         /*
@@ -63,6 +67,44 @@ public class Tokenizer {
         StringBuilder currentToken = new StringBuilder();
         
         StringState stringState = StringState.NONE;
+        
+        // definition pass if enabled
+        if(HANDLE_DEFINITIONS) {
+            for(int i = 0; i < lines.size(); i++) {
+                String s = lines.get(i);
+                
+                if(s.toLowerCase().startsWith(DEFINITION_MARKER)) {
+                    String[] def = s.split(" ");
+                    
+                    if(def.length < 3) {
+                        LOG.warning(String.format("Malformed definition on line %s. Ignoring.", i + 1));
+                        continue;
+                    }
+                    
+                    // marker, key, value
+                    String k = def[1],
+                           v = "";
+                    
+                    for(int j = 2; j < def.length; j++) v += def[j] + " ";
+                    v = v.substring(0, v.length() - 1); // trailing space
+                    
+                    LOG.finer("Replacing " + k + " with " + v);
+                    
+                    // replace
+                    for(int j = i + 1; j < lines.size(); j++) {
+                        String ln = lines.get(j);
+                        if(ln.contains(k)) {
+                            LOG.finest("Instance on line " + (j + 1));
+                            
+                            lines.set(j, ln.replaceAll(k, v));
+                        }
+                    }
+                    
+                    // remove definition line by clearing it
+                    lines.set(i, "");
+                }
+            }
+        }
         
         while(true) {            
             // next line?
@@ -291,9 +333,29 @@ public class Tokenizer {
     }
     
     /**
+     * Sets whether the {@link Tokenizer} handles definition statements. Lines beginning with the definition
+     * marker (case sensitive, default value {@code %define}) will be interpreted as definitions and
+     * will be applied in-order to subsequent lines with a simple find-replace.
+     * 
+     * @param b {@code true} to handle definitions, {@code false} to not. Defaults to {@code true}
+     */
+    public static void setHandleDefinitions(boolean b) {
+        HANDLE_DEFINITIONS = b;
+    }
+    
+    /**
+     * Sets the marker for definition lines. Marker must not include whitespace and is not case sensitive.
+     * 
+     * @param s String marker to use. Default value {@code %define}
+     */
+    public static void setDefinitionMarker(String s) {
+        DEFINITION_MARKER = s.toLowerCase();
+    }
+    
+    /**
      * Sets the marker the {@link Tokenizer} uses for the start of line-end comments
      * 
-     * @param c Character to use. Default value {@code //}
+     * @param c Character to use. Default value {@code ;}
      */
     public static void setCommentMarker(char c) {
         COMMENT_MARKER = c;

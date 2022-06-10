@@ -298,14 +298,14 @@ public class Lexer {
         // if we find a symbol that might be part of an expression, start one
         if(!inExpression) {
             boolean isExpressive = switch(s) {
-                case ConstantSymbol c         -> true;
-                case NameSymbol n             -> true;
+                case ConstantSymbol c   -> true;
+                case NameSymbol n       -> true;
                 case StringSymbol ss    -> true;
                 
-                case MnemonicSymbol m         -> this.expressive.contains(m.name());
-                case RegisterSymbol r         -> this.expressive.contains(r.name());
-                case DirectiveSymbol d        -> this.expressive.contains(d.name());
-                case SizeSymbol s2            -> this.expressive.contains(s2.name());
+                case MnemonicSymbol m   -> this.expressive.contains(m.name());
+                case RegisterSymbol r   -> this.expressive.contains(r.name());
+                case DirectiveSymbol d  -> this.expressive.contains(d.name());
+                case SizeSymbol s2      -> this.expressive.contains(s2.name());
                 
                 default                 -> false;
             };
@@ -419,14 +419,14 @@ public class Lexer {
         
         // lex away
         if(parenthesized) {
-            while(!(this.tokens.peek() instanceof SpecialToken st && st.character() == ')')) {
+            while(hasNext() && !(this.tokens.peek() instanceof SpecialToken st && st.character() == ')')) {
                 symbols.add(lexNextToken(true));
             }
             
             // consume closing parentheses
             this.tokens.poll();
         } else {
-            while(!((this.tokens.peek() instanceof SpecialToken st && st.character() == ',') || (this.tokens.peek() instanceof LineToken))) {
+            while(hasNext() && !((this.tokens.peek() instanceof SpecialToken st && st.character() == ',') || (this.tokens.peek() instanceof LineToken))) {
                 symbols.add(lexNextToken(true));
             }
         }
