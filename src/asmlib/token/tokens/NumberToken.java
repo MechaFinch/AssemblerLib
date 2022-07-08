@@ -6,6 +6,6 @@ package asmlib.token.tokens;
  * @param value
  * @author Mechainfch
  */
-public record NumberToken(int value) implements Token {
+public record NumberToken(long value) implements Token {
     
 }

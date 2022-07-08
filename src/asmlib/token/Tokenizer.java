@@ -32,7 +32,7 @@ public class Tokenizer {
     private static String DEFINITION_MARKER = "%define";
     
     // pattern for detecting numbers
-    private static Pattern numberPattern = Pattern.compile("0x[0-9a-f]*|(0d)?[0-9]*|0o[0-7]+|0b[01]*");
+    private static Pattern numberPattern = Pattern.compile("0x[0-9a-fA-F_]*|(0d)?[0-9_]*|0o[0-7_]+|0b[01_]*");
     
     private static HashSet<Character> specialCharacters = new HashSet<Character>("()[],:+-*/<>".chars()
                                                                                                .mapToObj(c -> (char) c)
@@ -312,7 +312,7 @@ public class Tokenizer {
      */
     private static Token convertToToken(String word, int ln) {
         // try to make a number
-        String s = word.toLowerCase();
+        String s = word.toLowerCase().replace("_", "");
         if(numberPattern.matcher(s).matches()) {
             NumberToken t;
             
@@ -326,11 +326,11 @@ public class Tokenizer {
                            sv = s.substring(2);
                     
                     t = new NumberToken(switch(bid) {
-                        case "0b"   -> Integer.parseInt(sv, 2);
-                        case "0o"   -> Integer.parseInt(sv, 8);
-                        case "0d"   -> Integer.parseInt(sv);
-                        case "0x"   -> Integer.parseInt(sv, 16);
-                        default     -> Integer.parseInt(s);
+                        case "0b"   -> Long.parseLong(sv, 2);
+                        case "0o"   -> Long.parseLong(sv, 8);
+                        case "0d"   -> Long.parseLong(sv, 10);
+                        case "0x"   -> Long.parseLong(sv, 16);
+                        default     -> Long.parseLong(s);
                     });
                 }
                 

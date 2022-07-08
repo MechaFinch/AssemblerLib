@@ -298,6 +298,7 @@ public class Lexer {
         // if we find a symbol that might be part of an expression, start one
         if(!inExpression) {
             boolean isExpressive = switch(s) {
+                case ExpressionSymbol e -> true;
                 case ConstantSymbol c   -> true;
                 case NameSymbol n       -> true;
                 case StringSymbol ss    -> true;

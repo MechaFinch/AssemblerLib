@@ -6,6 +6,6 @@ package asmlib.lex.symbols;
  * @param value
  * @author Mechafinch
  */
-public record ConstantSymbol(int value) implements Symbol {
+public record ConstantSymbol(long value) implements Symbol {
     
 }
