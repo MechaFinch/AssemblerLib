@@ -34,9 +34,9 @@ public class Tokenizer {
     // pattern for detecting numbers
     private static Pattern numberPattern = Pattern.compile("0x[0-9a-fA-F_]*|(0d)?[0-9_]*|0o[0-7_]+|0b[01_]*");
     
-    private static HashSet<Character> specialCharacters = new HashSet<Character>("()[],:+-*/<>".chars()
-                                                                                               .mapToObj(c -> (char) c)
-                                                                                               .collect(Collectors.toList())); // yeah
+    private static HashSet<Character> specialCharacters = new HashSet<Character>("()[],:+-*/<>~&|^".chars()
+                                                                                                   .mapToObj(c -> (char) c)
+                                                                                                   .collect(Collectors.toList())); // yeah
     
     private enum StringState {
         NONE,

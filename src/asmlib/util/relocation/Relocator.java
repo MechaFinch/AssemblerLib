@@ -94,7 +94,7 @@ public class Relocator {
         
         LOG.finer("Relocated outgoing references:");
         for(String s : this.relocatedReferences.keySet()) {
-            LOG.finer(String.format("%s: %04X", s, this.relocatedReferences.get(s)));
+            LOG.finer(String.format("%s: %08X", s, this.relocatedReferences.get(s)));
         }
         
         // relocate incoming references
@@ -109,7 +109,7 @@ public class Relocator {
                     addr = this.relocatedReferences.get(s);
                 
                 for(int i : obj.incomingReferences.get(s)) {
-                    LOG.finest(String.format("Placed %04X at %04X", addr, i + offset));
+                    LOG.finest(String.format("Placed %08X at %08X", addr, i + offset));
                     
                     for(int a = 0; a < addrSize; a++) {
                         byte b = (byte)((addr >> (a * 8)) & 0xFF);
@@ -134,7 +134,7 @@ public class Relocator {
                 if(j % 8 == 7) s += " ";
             }
             
-            LOG.finest(String.format("%04X: %s", i + startPosition, s));
+            LOG.finest(String.format("%08X: %s", i + startPosition, s));
         }
         
         return code;

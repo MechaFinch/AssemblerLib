@@ -3,7 +3,9 @@ package asmlib.util.relocation;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * A RelocatableObject with information on how to correct library names
@@ -75,10 +77,20 @@ public class RenameableRelocatableObject extends RelocatableObject {
         if(!this.libaryMap.containsKey(f)) return;
         
         String key = this.libaryMap.get(f);
+        if(key.equals(name)) return; // if renaming would do nothing
         
-        for(String s : this.incomingReferences.keySet()) {
+        // copy so we can modify while iterating
+        Set<String> originalKeys = new HashSet<>(this.incomingReferences.keySet());
+        
+        for(String s : originalKeys) {
             if(s.startsWith(key)) {
+                List<Integer> refs = this.incomingReferences.remove(s);
+                int len = this.incomingReferenceWidths.remove(s);
+                
                 s = name + s.substring(key.length());
+                
+                this.incomingReferences.put(s, refs);
+                this.incomingReferenceWidths.put(s, len);
             }
         }
     }

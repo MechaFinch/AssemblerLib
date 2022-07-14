@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,14 +21,15 @@ public class ExecLoader {
      * @param rel Relocator
      * @param entry Entry symbol
      * @param mem Memory
-     * @param start Start address
+     * @param startInMemory Start address as used in relocation
+     * @param startInArray Start index in the given array
      * @return Address of the entry symbol
      */
-    public static int loadRelocator(Relocator rel, String entry, byte[] mem, int start) {
-        byte[] relocatedCode = rel.relocate(start);
+    public static int loadRelocator(Relocator rel, String entry, byte[] mem, int startInMemory, int startInArray) {
+        byte[] relocatedCode = rel.relocate(startInMemory);
         
         for(int i = 0; i < relocatedCode.length; i++) {
-            mem[start + i] = relocatedCode[i];
+            mem[startInArray + i] = relocatedCode[i];
         }
         
         return rel.getReference(entry);
@@ -38,11 +40,12 @@ public class ExecLoader {
      * 
      * @param f File
      * @param mem Memory
-     * @param start Start address
+     * @param startInMemory Start address as used in relocation
+     * @param startInArray Start index in the given array
      * @return Entry symbol address
      * @throws IOException
      */
-    public static int loadExecFile(File f, byte[] mem, int start) throws IOException {
+    public static int loadExecFile(File f, byte[] mem, int startInMemory, int startInArray) throws IOException {
         List<String> lines;
         
         try(BufferedReader br = new BufferedReader(new FileReader(f))) {
@@ -71,6 +74,6 @@ public class ExecLoader {
             throw new IllegalArgumentException("missing entry symbol");
         }
         
-        return loadRelocator(rel, entryName, mem, start);
+        return loadRelocator(rel, entryName, mem, startInMemory, startInArray);
     }
 }
