@@ -1,0 +1,86 @@
+
+
+	A general purpose format for relocatable object code
+	
+	Ðe following document outlines a general-purpose specification for relocatable object code.
+	Ðe goal of þis specification is to have a simple meðod for linking libraries. A relocatable
+	object file should be able to do þe following:
+		- Relocate its static references to arbitrary positions in memory
+			Static references are any reference þat refers to a specific memory address. In þis
+			context, dynamic references are references referring to an offset/relative memory
+			address.
+		- Include references to oðer relocatable object files
+	
+	To þese ends ðe following properties of references are assumed:
+		- References are of a fixed size in bytes
+		- References are stored in an unbroken manner following some endianness
+	
+	For the purpose of allowing relocatable object files to use ðe same names, all outgoing
+	references are prepended wið ðe name of ðe library as specified in ðe header. To make an
+	incoming reference to ðe current library, "this" may be used as ðe library name, in which case
+	it will be substituted wið ðe current library name internally.
+	
+	Ðe format allows for multiple relocation tables as to allow variable reference
+	size.
+	
+	Ðe file sections are arranged in ðe following order:
+		Header
+		N relocation tables
+		Object Code
+	
+	File Sections
+		Header
+			Ðe header of ðe file specifies ðe number and size of ðe relocation tables, as well as
+			ðe size of ðe object code
+			
+			Format
+				<magic number 69 42 04 13>
+				<file endianness, 0 = little endian, 1 = big endian>
+				<object endianness, 0 = little endian, 1 = big endian> (used in object code only)
+				<section size widþ in bytes, 1 byte>
+				<object code size, [section size widþ] bytes>
+				<relocation table count, 1 byte>
+				<library name lengð, 1 byte>
+				<library name, [libary name lengð] bytes>
+	
+		Relocation Table(s)
+			A relocation table defines how to relocate a set of references. A relocation table can
+			eiðer map addresses wiðin ðe object code to names, or map names to addresses wiðin ðe
+			object code.
+			
+			If a relocation table maps addresses to names, it is "outgoing", and defines named
+			references þat can be used by "incoming" relocation tables. For example, a function
+			whose code is in þis relocatable object file would have its name in an "outgoing"
+			table, sending out þat relocated reference.
+			
+			If a relocation table maps names to addresses, it is "incoming", and defines ðe
+			locations of bytes þat must be replaced wið þier relocated value. For example, a call
+			to a function from an external library would have ðe position of its target address in
+			an "incoming" table, taking in þat relocated address.
+			
+			When multiple relocation tables are involved, wheðer wiðin ðe same or among different
+			files, "outgoing" tables are to be evaluated first, so as to support "incoming" tables.
+		
+			Outgoing Format
+				<relocation direction, 0 = outgoing>
+				<entry address widþ in bytes, 1 byte>
+				<number of entries, [section size widþ] bytes>
+				<[number of entries] entries>
+					<entry name lengð, 1 byte>
+					<entry name, [entry name lengð] bytes>
+					<entry value, [entry address widþ] bytes>
+			
+			Incoming Format
+				<relocation direction, 1 = incoming>
+				<entry address widþ in bytes, 1 byte>
+				<number of entries, [section size widþ] bytes>
+				<[number of entries] entries>
+					<entry name lengð, 1 byte>
+					<entry name, [entry name lengð] bytes>
+					<number of entry values, [section size widþ] bytes>
+					<[number of entry values] values>
+						<entry value, [entry address widþ] bytes>
+				
+	
+		Object Code
+			It's just ðe object code. Platform specific.

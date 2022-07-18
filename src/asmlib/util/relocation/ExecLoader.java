@@ -4,7 +4,6 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -36,16 +35,13 @@ public class ExecLoader {
     }
     
     /**
-     * Loads the contents of an "exec" file into an array
+     * Loads the contents of an exec file into a Relocator
      * 
-     * @param f File
-     * @param mem Memory
-     * @param startInMemory Start address as used in relocation
-     * @param startInArray Start index in the given array
-     * @return Entry symbol address
+     * @param f
+     * @return Relocator in index 0, entry symbol in index 1
      * @throws IOException
      */
-    public static int loadExecFile(File f, byte[] mem, int startInMemory, int startInArray) throws IOException {
+    public static List<Object> loadExecFileToRelocator(File f) throws IOException {
         List<String> lines;
         
         try(BufferedReader br = new BufferedReader(new FileReader(f))) {
@@ -74,6 +70,22 @@ public class ExecLoader {
             throw new IllegalArgumentException("missing entry symbol");
         }
         
-        return loadRelocator(rel, entryName, mem, startInMemory, startInArray);
+        return List.of(rel, entryName);
+    }
+    
+    /**
+     * Loads the contents of an "exec" file into an array
+     * 
+     * @param f File
+     * @param mem Memory
+     * @param startInMemory Start address as used in relocation
+     * @param startInArray Start index in the given array
+     * @return Entry symbol address
+     * @throws IOException
+     */
+    public static int loadExecFileToArray(File f, byte[] mem, int startInMemory, int startInArray) throws IOException {
+        List<Object> pair = loadExecFileToRelocator(f);
+        
+        return loadRelocator((Relocator) pair.get(0), (String) pair.get(1), mem, startInMemory, startInArray);
     }
 }

@@ -2,6 +2,7 @@ package asmlib.util.relocation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map.Entry;
 import java.util.logging.Logger;
 
 import asmlib.util.relocation.RelocatableObject.Endianness;
@@ -106,7 +107,14 @@ public class Relocator {
                 LOG.finer("Relocating " + s + " in " + obj.name);
                 
                 int addrSize = obj.incomingReferenceWidths.get(s),
+                    addr;
+                
+                try {
                     addr = this.relocatedReferences.get(s);
+                } catch(NullPointerException e) {
+                    LOG.severe("Reference not found: " + s);
+                    throw e;
+                }
                 
                 for(int i : obj.incomingReferences.get(s)) {
                     LOG.finest(String.format("Placed %08X at %08X", addr, i + offset));
@@ -125,7 +133,7 @@ public class Relocator {
         }
         
         LOG.finest("Final Object Code:");
-        LOG.finest("       0  1  2  3  4  5  6  7   8  9  A  B  C  D  E  F");
+        LOG.finest("           0  1  2  3  4  5  6  7   8  9  A  B  C  D  E  F");
         for(int i = 0; i < code.length; i += 16) {
             String s = "";
             
@@ -140,7 +148,28 @@ public class Relocator {
         return code;
     }
     
+    /**
+     * Gets the address of a symbol as of the last relocation
+     * 
+     * @param name
+     * @return
+     */
     public int getReference(String name) {
         return this.relocatedReferences.get(name);
+    }
+    
+    /**
+     * Gets the name of the given address if it has one
+     * 
+     * @return
+     */
+    public String getAddressName(int addr) {
+        if(this.relocatedReferences.containsValue(addr)) {
+            for(Entry<String, Integer> entry : this.relocatedReferences.entrySet()) {
+                if(entry.getValue() == addr) return entry.getKey();
+            }
+        }
+        
+        return "";
     }
 }
