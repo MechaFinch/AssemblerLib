@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -67,13 +68,15 @@ public class RenameableRelocatableObject extends RelocatableObject {
         if(this.libaryMap == null) this.libaryMap = new HashMap<>();
     }
     
+    public Set<String> getOutgoingReferenceNames() { return this.outgoingReferences.keySet(); }
+    
     /**
      * Renames incoming references associated with the given file
      * 
      * @param f
      * @param name
      */
-    public void rename(File f, String name) {
+    public void renameLibrary(File f, String name) {
         if(!this.libaryMap.containsKey(f)) return;
         
         String key = this.libaryMap.get(f);
@@ -92,6 +95,38 @@ public class RenameableRelocatableObject extends RelocatableObject {
                 this.incomingReferences.put(s, refs);
                 this.incomingReferenceWidths.put(s, len);
             }
+        }
+    }
+    
+    /**
+     * Renames all references with the given name
+     * 
+     * @param oldName
+     * @param newName
+     */
+    public void renameGlobal(String oldName, String newName) {
+        renameMap(this.incomingReferences, oldName, newName);
+        renameMap(this.incomingReferenceWidths, oldName, newName);
+        
+        if(oldName.startsWith(this.name)) {
+            oldName = oldName.substring(this.nameLength + 1);
+            newName = newName.substring(this.nameLength + 1);
+            renameMap(this.outgoingReferences, oldName, newName);
+            renameMap(this.outgoingReferenceWidths, oldName, newName);
+        }
+    }
+    
+    /**
+     * Renames map keys
+     * 
+     * @param <T>
+     * @param map
+     * @param oldName
+     * @param newName
+     */
+    private <T> void renameMap(Map<String, T> map, String oldName, String newName) {
+        if(map.containsKey(oldName)) {
+            map.put(newName, map.remove(oldName));
         }
     }
 }

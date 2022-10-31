@@ -55,6 +55,15 @@ public class ExecLoader {
         for(String s : lines) {
             if(s.startsWith("#entry")) {
                 entryName = s.split(" ")[1];
+            } else if(s.startsWith("#org")) {
+                String origin = s.split(" ")[1];
+                
+                if(origin.equals("dyn")) {
+                    
+                } else {
+                    long org = Long.parseLong(origin);
+                    
+                }
             } else {
                 File f2 = new File(s);
                 

@@ -268,7 +268,7 @@ public class Lexer {
      * @return resulting {@link Symbol}
      */
     private Symbol lexNextToken(boolean inExpression) {
-        LOG.finer("Lexing token " + this.tokens.peek());
+        LOG.finer("Lexing token " + (inExpression ? "in expression " : "") + this.tokens.peek());
         
         Symbol s = switch(this.tokens.poll()) {
             // direct conversions
