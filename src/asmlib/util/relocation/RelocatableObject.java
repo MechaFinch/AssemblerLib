@@ -317,7 +317,7 @@ public class RelocatableObject {
      * @return This object as an .obj file
      */
     public byte[] asObjectFile() {
-        LOG.fine("Converting to writable object file");
+        LOG.fine("Converting " + this.name + " to writable object file (" + this.objectCodeSize + " code bytes)");
         LOG.finer("Calculating file size");
         
         // header size
@@ -468,7 +468,7 @@ public class RelocatableObject {
         buffer.put(this.objectCode);
         LOG.finest("Wrote object code");
         
-        LOG.fine(String.format("Allocated %s bytes. Wrote %s bytes.", buffer.capacity(), buffer.position()));
+        LOG.finer(String.format("Allocated %s bytes. Wrote %s bytes.", buffer.capacity(), buffer.position()));
         
         return buffer.array();
     }

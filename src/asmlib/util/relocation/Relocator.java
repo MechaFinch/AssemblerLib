@@ -162,7 +162,7 @@ public class Relocator {
         byte[] code = new byte[totalCodeSize];
         
         for(RelocatableObject obj : objects) {
-            index = this.objectLocations.get(obj.name);
+            index = this.objectLocations.get(obj.name) - startPosition;
             
             LOG.finest(obj.name + " placed at " + index);
             
