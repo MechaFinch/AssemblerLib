@@ -81,7 +81,7 @@ public class Tokenizer {
                 String s = lines.get(i);
                 
                 if(s.toLowerCase().startsWith(DEFINITION_MARKER)) {
-                    String[] def = s.split(" "); // no ez iterator because line numbers
+                    String[] def = s.split("\\s+"); // no ez iterator because line numbers
                     
                     if(def.length < 3) {
                         LOG.warning(String.format("Malformed definition on line %s. Ignoring.", i + 1));
@@ -312,8 +312,8 @@ public class Tokenizer {
      */
     private static Token convertToToken(String word, int ln) {
         // try to make a number
-        String s = word.toLowerCase().replace("_", "");
-        if(numberPattern.matcher(s).matches()) {
+        if(numberPattern.matcher(word).matches()) {
+            String s = word.toLowerCase().replace("_", "");
             NumberToken t;
             
             try {

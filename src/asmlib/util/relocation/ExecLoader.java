@@ -24,7 +24,7 @@ public class ExecLoader {
      * @param startInArray Start index in the given array
      * @return Address of the entry symbol
      */
-    public static int loadRelocator(Relocator rel, String entry, byte[] mem, int startInMemory, int startInArray) {
+    public static long loadRelocator(Relocator rel, String entry, byte[] mem, long startInMemory, int startInArray) {
         byte[] relocatedCode = rel.relocate(startInMemory);
         
         for(int i = 0; i < relocatedCode.length; i++) {
@@ -49,7 +49,7 @@ public class ExecLoader {
         }
         
         String entryName = "",
-               directory = f.getParent() + "\\";
+               directory = f.getAbsoluteFile().getParent() + "\\";
         Relocator rel = new Relocator();
         
         for(String s : lines) {
@@ -58,6 +58,7 @@ public class ExecLoader {
             } else if(s.startsWith("#org")) {
                 String origin = s.split(" ")[1];
                 
+                // i dont remember what this is for lmao
                 if(origin.equals("dyn")) {
                     
                 } else {
@@ -92,7 +93,7 @@ public class ExecLoader {
      * @return Entry symbol address
      * @throws IOException
      */
-    public static int loadExecFileToArray(File f, byte[] mem, int startInMemory, int startInArray) throws IOException {
+    public static long loadExecFileToArray(File f, byte[] mem, int startInMemory, int startInArray) throws IOException {
         List<Object> pair = loadExecFileToRelocator(f);
         
         return loadRelocator((Relocator) pair.get(0), (String) pair.get(1), mem, startInMemory, startInArray);

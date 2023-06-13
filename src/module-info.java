@@ -1,4 +1,5 @@
 module AssemblerLib {
+    exports asmlib.util;
     exports asmlib.util.relocation;
     exports asmlib.lex;
     exports asmlib.lex.symbols;

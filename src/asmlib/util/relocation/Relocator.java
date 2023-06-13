@@ -20,9 +20,9 @@ public class Relocator {
     
     private ArrayList<RelocatableObject> objects;
     
-    private HashMap<String, Integer> relocatedReferences,
-                                     objectLocations,
-                                     fixedOrigins;
+    private HashMap<String, Long> relocatedReferences,
+                                  objectLocations,
+                                  fixedOrigins;
     
     private boolean hasFixed = false;
     
@@ -45,7 +45,7 @@ public class Relocator {
         this.objects.add(o);
         
         if(o.outgoingReferences.containsKey("ORIGIN")) {
-            this.fixedOrigins.put(o.name, o.outgoingReferences.get("ORIGIN"));
+            this.fixedOrigins.put(o.name, Integer.toUnsignedLong(o.outgoingReferences.get("ORIGIN")));
             this.hasFixed = true;
         }
     }
@@ -56,14 +56,14 @@ public class Relocator {
      * @param startPosition Physical start address
      * @return
      */
-    public byte[] relocate(int startPosition) {
+    public byte[] relocate(long startPosition) {
         String libs = "";
         for(RelocatableObject obj : objects) libs += ", " + obj.name;
         
         LOG.fine("Relocating libraries: " + libs.substring(2));
         
-        int index = startPosition,
-            totalCodeSize = 0;
+        long index = startPosition,
+             totalCodeSize = 0;
         
         // sort by object code length
         this.objects.sort((a, b) -> {
@@ -71,19 +71,19 @@ public class Relocator {
         });
         
         // Stuff for placing libraries optimally
-        TreeSet<Integer> objectStartAddresses = new TreeSet<>();
-        HashMap<Integer, Integer> objectEndAddresses = new HashMap<>();
-        int minimumStartAddress = 0;
+        TreeSet<Long> objectStartAddresses = new TreeSet<>();
+        HashMap<Long, Long> objectEndAddresses = new HashMap<>();
+        long minimumStartAddress = 0;
         
         // handle fixed locations
         for(RelocatableObject obj : objects) {
             if(this.fixedOrigins.containsKey(obj.name)) {
-                int o = this.fixedOrigins.get(obj.name) - startPosition,
-                    l = obj.objectCodeSize;
+                long o = this.fixedOrigins.get(obj.name) - startPosition,
+                     l = obj.objectCodeSize;
                 
                 LOG.finest(obj.name + " has fixed location " + (o + startPosition));
                 
-                if(o < 0) {
+                if(o < 0l) {
                     throw new IllegalArgumentException("Fixed location " + (o + startPosition) + " is before the start position");
                 }
                 
@@ -91,7 +91,7 @@ public class Relocator {
                 
                 // check overlap
                 if(objectStartAddresses.size() != 0) {
-                    Integer closestStart = objectStartAddresses.floor(o + l - 1);
+                    Long closestStart = objectStartAddresses.floor(o + l - 1);
                     
                     if(closestStart != null) {
                         if(closestStart > o || objectEndAddresses.get(closestStart) > o) {
@@ -112,28 +112,28 @@ public class Relocator {
         // determine locations and count total length
         for(RelocatableObject obj : objects) {
             if(!this.hasFixed) {
-                this.objectLocations.put(obj.name, index);
+                this.objectLocations.put(obj.name, index - startPosition);
                 totalCodeSize += obj.objectCodeSize;
                 index += obj.objectCodeSize;
             } else {
                 if(this.objectLocations.containsKey(obj.name)) { 
                     // it's already been located by its fixed position
-                    int i = this.objectLocations.get(obj.name),
-                        l = obj.objectCodeSize;
+                    long i = this.objectLocations.get(obj.name),
+                         l = obj.objectCodeSize;
                     
                     if(i + l > totalCodeSize) totalCodeSize = i + l;
                 } else {
                     // i is the address we intend to start at
-                    int i = minimumStartAddress,
-                        l = obj.objectCodeSize,
-                        lastStart = 0;
+                    long i = minimumStartAddress,
+                         l = obj.objectCodeSize,
+                         lastStart = 0;
                     
                     while(true) {
                         // until the full necessary range is clear, search the address space
-                        Integer closestStart = objectStartAddresses.floor(i + l - 1);
+                        Long closestStart = objectStartAddresses.floor(i + l - 1);
                         
                         if(closestStart != null) {
-                            int closestEnd = objectEndAddresses.get(closestStart);
+                            long closestEnd = objectEndAddresses.get(closestStart);
                             
                             // overlap = search from end of given segment
                             if(closestStart > i || closestEnd > i) {
@@ -147,7 +147,7 @@ public class Relocator {
                     }
                     
                     // we're either at 0 or the end of a previous segment
-                    if(lastStart == 0) objectStartAddresses.add(0);
+                    if(lastStart == 0) objectStartAddresses.add(0l);
                     
                     // extend entry
                     objectEndAddresses.put(lastStart, i + l - 1);
@@ -159,15 +159,15 @@ public class Relocator {
         }
         
         // copy object code
-        byte[] code = new byte[totalCodeSize];
+        byte[] code = new byte[(int) totalCodeSize];
         
         for(RelocatableObject obj : objects) {
-            index = this.objectLocations.get(obj.name) - startPosition;
+            index = this.objectLocations.get(obj.name);
             
             LOG.finest(obj.name + " placed at " + index);
             
             for(int i = 0; i < obj.objectCodeSize; i++) {
-                code[index++] = obj.objectCode[i];
+                code[(int)(index++)] = obj.objectCode[i];
             }
         }
         
@@ -188,10 +188,10 @@ public class Relocator {
         
         // relocate outgoing references
         for(RelocatableObject obj : objects) {
-            int offset = this.objectLocations.get(obj.name);
+            long offset = this.objectLocations.get(obj.name);
             
             for(String s : obj.outgoingReferences.keySet()) {
-                this.relocatedReferences.put(obj.name + "." + s, obj.outgoingReferences.get(s) + offset);
+                this.relocatedReferences.put(obj.name + "." + s, obj.outgoingReferences.get(s) + offset + startPosition);
             }
         }
         
@@ -203,13 +203,13 @@ public class Relocator {
         // relocate incoming references
         LOG.finer("Relocating incoming references");
         for(RelocatableObject obj : objects) {
-            int offset = this.objectLocations.get(obj.name);
+            long offset = this.objectLocations.get(obj.name);
             
             for(String s : obj.incomingReferences.keySet()) {
                 LOG.finer("Relocating " + s + " in " + obj.name);
                 
-                int addrSize = obj.incomingReferenceWidths.get(s),
-                    addr;
+                long addrSize = obj.incomingReferenceWidths.get(s),
+                     addr;
                 
                 try {
                     addr = this.relocatedReferences.get(s);
@@ -219,15 +219,15 @@ public class Relocator {
                 }
                 
                 for(int i : obj.incomingReferences.get(s)) {
-                    LOG.finest(String.format("Placed %08X at %08X", addr, i + offset));
+                    LOG.finest(String.format("Placed %08X at %08X", addr, i + offset + startPosition));
                     
                     for(int a = 0; a < addrSize; a++) {
                         byte b = (byte)((addr >> (a * 8)) & 0xFF);
                         
                         if(obj.objectEndianness == Endianness.LITTLE) {
-                            code[i + a + offset - startPosition] = b;
+                            code[(int)(i + a + offset)] = b;
                         } else {
-                            code[i + (addrSize - a - 1) + offset - startPosition] = b;
+                            code[(int)(i + (addrSize - a - 1) + offset)] = b;
                         }
                     }
                 }
@@ -260,7 +260,7 @@ public class Relocator {
      * @param name
      * @return
      */
-    public int getReference(String name) {
+    public long getReference(String name) {
         return this.relocatedReferences.get(name);
     }
     
@@ -269,9 +269,9 @@ public class Relocator {
      * 
      * @return
      */
-    public String getAddressName(int addr) {
+    public String getAddressName(long addr) {
         if(this.relocatedReferences.containsValue(addr)) {
-            for(Entry<String, Integer> entry : this.relocatedReferences.entrySet()) {
+            for(Entry<String, Long> entry : this.relocatedReferences.entrySet()) {
                 if(entry.getValue() == addr) return entry.getKey();
             }
         }

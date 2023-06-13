@@ -1,9 +1,9 @@
 package asmlib.lex;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -83,7 +83,7 @@ public class Lexer {
     }
     
     /**
-     * Create a {@code Lexer} with the resreved words given in a file
+     * Create a {@code Lexer} with the resreved words given by an input stream
      * <p>
      * The file should have sections for each type of reserved word marked by {@code ::mnemonics::},
      * {@code ::registers::}, and {@code ::directives::}
@@ -93,7 +93,7 @@ public class Lexer {
      * @param labelPrefix string to prefix all labels in
      * @param serperators whether to include seperators as symbols
      */
-    public Lexer(File f, String labelPrefix, boolean seperators) throws IOException {
+    public Lexer(InputStream reswordInput, String labelPrefix, boolean seperators) throws IOException {
         this.labelPrefix = labelPrefix;
         this.INCLUDE_SEPERATORS = seperators;
         
@@ -104,8 +104,8 @@ public class Lexer {
         this.expressive = new HashSet<>();
         
         // read that file
-        try(BufferedReader br = new BufferedReader(new FileReader(f))) {
-            LOG.fine("Loading reserved words from file " + f);
+        try(BufferedReader br = new BufferedReader(new InputStreamReader(reswordInput))) {
+            LOG.fine("Loading reserved words from stream " + reswordInput);
                         
             enum Category {
                 MNEMONICS,
