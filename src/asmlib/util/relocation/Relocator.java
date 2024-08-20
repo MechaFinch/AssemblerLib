@@ -3,6 +3,7 @@ package asmlib.util.relocation;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map.Entry;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -24,6 +25,8 @@ public class Relocator {
                                   objectLocations,
                                   fixedOrigins;
     
+    private TreeMap<Long, String> referenceNameMap;
+    
     private boolean hasFixed = false;
     
     /**
@@ -34,6 +37,7 @@ public class Relocator {
         this.relocatedReferences = new HashMap<>();
         this.objectLocations = new HashMap<>();
         this.fixedOrigins = new HashMap<>();
+        this.referenceNameMap = new TreeMap<>();
     }
     
     /**
@@ -191,7 +195,10 @@ public class Relocator {
             long offset = this.objectLocations.get(obj.name);
             
             for(String s : obj.outgoingReferences.keySet()) {
-                this.relocatedReferences.put(obj.name + "." + s, obj.outgoingReferences.get(s) + offset + startPosition);
+                long addr = obj.outgoingReferences.get(s) + offset + startPosition;
+                String dName = obj.name + "." + s;
+                this.relocatedReferences.put(dName, addr);
+                this.referenceNameMap.put(addr, dName);
             }
         }
         
@@ -214,7 +221,7 @@ public class Relocator {
                 try {
                     addr = this.relocatedReferences.get(s);
                 } catch(NullPointerException e) {
-                    LOG.severe("Reference not found: " + s);
+                    LOG.severe("Reference not found: " + s + " in " + obj.name);
                     throw e;
                 }
                 
@@ -265,17 +272,93 @@ public class Relocator {
     }
     
     /**
-     * Gets the name of the given address if it has one
+     * Returns true if the reference exists
+     * 
+     * @param name Reference to check
+     * @param fullname true = name includes object name, false = name does not include object name
+     * @return
+     */
+    public boolean hasReference(String name, boolean fullname) {
+        if(fullname) {
+            String objName = name.substring(0, name.indexOf('.')),
+                   refName = name.substring(name.indexOf('.'));
+            
+            for(RelocatableObject ro : this.objects) {
+                if(ro.getName().equals(objName) && ro.outgoingReferences.containsKey(refName)) return true;
+            }
+            
+            return false;
+        } else {
+            for(RelocatableObject ro : this.objects) {
+                if(ro.outgoingReferences.containsKey(name)) return true;
+            }
+            
+            return false;
+        }
+    }
+    
+    /**
+     * Gets the name of the given address if it has one, otherwise an empty string
      * 
      * @return
      */
     public String getAddressName(long addr) {
-        if(this.relocatedReferences.containsValue(addr)) {
-            for(Entry<String, Long> entry : this.relocatedReferences.entrySet()) {
-                if(entry.getValue() == addr) return entry.getKey();
-            }
-        }
+        return this.referenceNameMap.getOrDefault(addr, "");
+    }
+    
+    /**
+     * Gets the name of the symbol nearest to the given address
+     * 
+     * @param addr
+     * @return
+     */
+    public String getNearest(long addr) { 
+        Long above = this.referenceNameMap.ceilingKey(addr),
+             below = this.referenceNameMap.floorKey(addr);
         
-        return "";
+        if(above != null && below != null) {
+            if((above - addr) < (addr - below)) {
+                return getAddressName(above);
+            } else {
+                return getAddressName(below);
+            }
+        } else if(above != null) {
+            return getAddressName(above);
+        } else if(below != null) {
+            return getAddressName(below);
+        } else {
+            return "";
+        }
+    }
+    
+    /**
+     * Gets the name of the symbol nearest to the given address, whose address is greater than or equal to addr
+     * 
+     * @param addr
+     * @return
+     */
+    public String getNearestAbove(long addr) {
+        Long above = this.referenceNameMap.ceilingKey(addr);
+        
+        if(above != null) {
+            return getAddressName(above);
+        } else {
+            return "";
+        }
+    }
+    
+    /**
+     * Gets the name of the symbol nearest to the given address, whose address is less than or equal to addr
+     * @param addr
+     * @return
+     */
+    public String getNearestBelow(long addr) {
+        Long below = this.referenceNameMap.floorKey(addr);
+        
+        if(below != null) {
+            return getAddressName(below);
+        } else {
+            return "";
+        }
     }
 }

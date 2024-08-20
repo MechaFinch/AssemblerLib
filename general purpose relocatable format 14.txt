@@ -1,0 +1,121 @@
+
+	A general purpose format for relocatable object code
+	Version ...14
+	
+	The goal of this specification is a simple method for linking libraries. A relocatable ovject
+	file should be able to do the following:
+		- Relocate references to arbitrary positions in memory
+		- Allow references to other relocatable object files
+	
+File Sections
+	Relocatable Object Files consist of, in order:
+	-	A Header, describing various parameters
+	-	A number of relocation tables, indicated by the Header field Relocation Table Count
+	-	The object code of the library
+	
+	Each relocation table consists of, in order:
+	- A table header, describing its type and size
+	- A number of table entries, indicated by the table header field Entry Count
+
+	Header
+		Name						#Bytes		Values (hex)	Description
+		Magic Number				4			69 42 04 14		Indicates version number (and silliness)
+		Endianness					1			0, 1			Little endian, Big endian respectively
+		Section Size Width (SSW)	1			--				Number of bytes for numbers indicating the size of file segments
+		Object Code Size			SSW			--				Number of bytes of code
+		Library name length			1			--				Length in bytes of Library Name
+		Library Name				^			--				Name of the library described by this file
+		Relocation Table Count		1			--				Number of relocation tables
+		<Relocation Table Pointers>
+		<Relocation Tables>
+		<Object Code>
+	
+	Relocation Table Pointer
+		Name						#Bytes		Values (hex)	Description
+		Pointer						SSW			--				Offset in bytes, from the start of the file, to a relocation table
+	
+	Outgoing Relocation Table Header
+		Outgoing tables describe the location of references defined in this library.
+		To determine the value placed at an incoming reference, these references are searched.
+		
+		Name						#Bytes		Values (hex)	Description
+		Table Type					1			0				Indicates this table is outgoing
+		Entry Address Width (EAW)	1			--				Number of bytes for the address, relative to the start of the object code, of each reference
+		Entry Count 				SSW			--				Number of entries in this table
+		<Outgoing Relocation Table Entries>
+		
+	Outgoing Relocation Table Entry
+		Name						#Bytes		Values (hex)	Description
+		Entry Name Length			1			--				Number of bytes of Entry Name
+		Entry Name					^			--				Name of this reference
+		Entry Value					EAW			--				Address, relative to the start of the object code, for this reference
+
+	Absolute Incoming Relocation Table Header
+		Incoming tables describe where outgoing references, from this file or others, are placed in
+		the object code of this file. Each entry consists of its own sub-table of Entry Values,
+		which indicate each position the reference is to be placed.
+		
+		As an Absolute incoming relocation table, the value placed at the incoming reference is of
+		fixed size and the exact value of the position of the outgoing reference.
+		
+		Name						#Bytes		Values (hex)	Description
+		Table Type					1			1				Indicates this table is absolute incoming
+		Entry Address Width (EAW)	1			--				Number of bytes for the address, relative to the start of the object code, of each reference
+		Physical Address Width		1			--				Number of bytes for the absolute address placed at each reference in the table
+		Entry Count					SSW			--				Numebr of entries in this table
+		<Incoming Relocation Table Entries>
+	
+	Fixed Relative Incoming Relocation Table Header
+		Incoming tables describe where outgoing references, from this file or others, are placed in
+		the object code of this file. Each entry consists of its own sub-table of Entry Values,
+		which indicate each position the reference is to be placed.
+		
+		As a Fixed Relative incoming relocation table, the value placed at the incoming reference
+		is of fixed size and is relative to some offset from the first byte of the value.
+		
+		Name						#Bytes		Values (hex)	Description
+		Table Type					1			2				Indicates this table is fixed relative incoming
+		Entry Address Width (EAW)	1			--				Number of bytes for the address, relative to the start of the object code, of each reference
+		Relative Offset				1			--				Offset in bytes from the first byte of the placed value, used to determine the relative value. Must be signed.
+		Physical Address Width		1			--				Number of bytes for the relative address placed at each reference in the table
+		Entry Count					SSW			--				Number of entries in this table
+		<Incoming Relocation Table Entries>
+	
+	Variable Relative Incoming Relocation Table Header
+		Incoming tables describe where outgoing references, from this file or others, are placed in
+		the object code of this file. Each entry consists of its own sub-table of Entry Values,
+		which indicate each position the reference is to be placed.
+		
+		As a Variable Relative incoming relocation table, the value placed at the incoming reference
+		is of variable size and is relative to some offset from either the first byte or last byte
+		of the value. Additionally, each possible value width may place a fixed value before the
+		relative value. The address of the incoming reference is the address of the first byte of
+		the relative value, regardless of the fixed value's presence.
+		
+		Name							#Bytes		Values (hex)	Description
+		Table Type						1			3, 4			Indicates this table is variable relative incoming. A value of 3 indicates the offset is relative to the first byte of the value; a value of 4 indicates the offset is relative to the last byte of the value
+		Entry Address Width (EAW)		1			--				Number of bytes for the address, relative to the start of the object code, of each reference
+		Relative Offset					1			--				Offset in bytes from the first or last byte of the placed value, used to determine the relative value. Must be signed.
+		Prefix Size	(PS)				1			--				Number of bytes of the fixed value prefixing each relative value
+		Physical Address Width Count	1			--				Number of possible physical address widths
+		<Physical Address Width Table Entries>
+		Entry Count						SSW			--				Number of entries in this table
+		<Incoming Relocation Table Entries>
+		
+	Physical Address Width Table Entry
+		Name							#Bytes		Values (hex)	Description
+        Physical Address Width          1           --              Number of bytes for the relative address
+		Prefix							PS			--				Value to prefix this physical address width with
+	
+	Incoming Relocation Table Entry
+		This format is used for all variations on incoming relocation tables
+		
+		Name						#Bytes		Values (hex)	Description
+		Entry Name Length			1			--				Number of bytes of Entry Name
+		Entry Name					^			--				Name of the reference to place at each entry value
+		Entry Value Count			SSW			--				Number of entry values
+		<Entry Values>
+		
+		Entry Value					EAW			--				Address, relative to the start of the object code, for the reference to be placed at
+	
+	

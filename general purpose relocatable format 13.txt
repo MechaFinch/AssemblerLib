@@ -1,6 +1,7 @@
 
 
 	A general purpose format for relocatable object code
+	Version ...13
 	
 	Ðe following document outlines a general-purpose specification for relocatable object code.
 	Ðe goal of þis specification is to have a simple meðod for linking libraries. A relocatable

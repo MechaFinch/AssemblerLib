@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -107,18 +108,26 @@ public class RelocatableObject {
      * @param contents
      */
     public void read(byte[] contents) {
-        LOG.fine("Reading contents");
+        LOG.fine("Reading contents (" + contents.length + " bytes)");
         
-        LOG.finest("Contents:");
-        for(int i = 0; i < contents.length; i += 16) {
-            String s = "";
-            
-            for(int j = 0; j < 16 && (i + j) < contents.length; j++) {
-                s += String.format("%02X ", contents[i + j]);
-                if(j % 8 == 7) s += " ";
+        Logger logp = LOG;
+        if(LOG.getLevel() == null) while((logp = logp.getParent()).getLevel() == null);
+        
+        boolean logFinest = logp.getLevel() == Level.FINEST,
+                logFiner = logp.getLevel() == Level.FINER || logFinest;
+        
+        if(logFinest) {
+            LOG.finest("Contents:");
+            for(int i = 0; i < contents.length; i += 16) {
+                String s = "";
+                
+                for(int j = 0; j < 16 && (i + j) < contents.length; j++) {
+                    s += String.format("%02X ", contents[i + j]);
+                    if(j % 8 == 7) s += " ";
+                }
+                
+                LOG.finest(s);
             }
-            
-            LOG.finest(s);
         }
         
         // init
@@ -169,14 +178,16 @@ public class RelocatableObject {
         this.name = readString(contents, fileIndex, this.nameLength);
         fileIndex += this.nameLength;
         
-        LOG.finer("-- Header --");
-        LOG.finer("File Endianness " + this.fileEndianness);
-        LOG.finer("Object Endianness " + this.objectEndianness);
-        LOG.finer("Size Width " + this.sectionSizeWidth);
-        LOG.finer("Code Size " + this.objectCodeSize);
-        LOG.finer("Table Count " + this.tableCount);
-        LOG.finer("Name Length " + this.nameLength);
-        LOG.finer("Name " + this.name);
+        if(logFiner) { 
+            LOG.finer("-- Header --");
+            LOG.finer("File Endianness " + this.fileEndianness);
+            LOG.finer("Object Endianness " + this.objectEndianness);
+            LOG.finer("Size Width " + this.sectionSizeWidth);
+            LOG.finer("Code Size " + this.objectCodeSize);
+            LOG.finer("Table Count " + this.tableCount);
+            LOG.finer("Name Length " + this.nameLength);
+            LOG.finer("Name " + this.name);
+        }
         
         // read tables
         for(int t = 0; t < this.tableCount; t++) {
@@ -190,10 +201,12 @@ public class RelocatableObject {
             int entryCount = readInteger(contents, fileIndex, this.sectionSizeWidth);
             fileIndex += this.sectionSizeWidth;
             
-            LOG.finer("-- Table --");
-            LOG.finer("Direction " + (outgoing ? "outgoing" : "incoming"));
-            LOG.finer("Width " + entryWidth);
-            LOG.finer("Count " + entryCount);
+            if(logFiner) {
+                LOG.finer("-- Table --");
+                LOG.finer("Direction " + (outgoing ? "outgoing" : "incoming"));
+                LOG.finer("Width " + entryWidth);
+                LOG.finer("Count " + entryCount);
+            }
             
             // entries
             for(int e = 0; e < entryCount; e++) {
@@ -212,10 +225,12 @@ public class RelocatableObject {
                     this.outgoingReferences.put(name, val);
                     this.outgoingReferenceWidths.put(name, entryWidth);
                     
-                    LOG.finer("-- Outgoing Entry --");
-                    LOG.finer("Name Length " + len);
-                    LOG.finer("Name " + name);
-                    LOG.finer("Value " + val);
+                    if(logFiner) {
+                        LOG.finer("-- Outgoing Entry --");
+                        LOG.finer("Name Length " + len);
+                        LOG.finer("Name " + name);
+                        LOG.finer("Value " + val);
+                    }
                 } else {
                     // substitute "this"
                     if(name.startsWith("this.")) {
@@ -238,13 +253,15 @@ public class RelocatableObject {
                     this.incomingReferences.put(name, vals);
                     this.incomingReferenceWidths.put(name, entryWidth);
                     
-                    LOG.finer("-- Incoming Entry --");
-                    LOG.finer("Name Length " + len);
-                    LOG.finer("Name " + name);
-                    LOG.finer("Value Count " + num);
-                    
-                    for(int i : vals) {
-                        LOG.finer("Value " + i);
+                    if(logFiner) {
+                        LOG.finer("-- Incoming Entry --");
+                        LOG.finer("Name Length " + len);
+                        LOG.finer("Name " + name);
+                        LOG.finer("Value Count " + num);
+                        
+                        for(int i : vals) {
+                            LOG.finer("Value " + i);
+                        }
                     }
                 }
             }
@@ -257,19 +274,21 @@ public class RelocatableObject {
             this.objectCode[i] = contents[fileIndex++];
         }
         
-        LOG.finest("Object Code:");
-        for(int i = 0; i < this.objectCodeSize; i += 16) {
-            String s = "";
-            
-            for(int j = 0; j < 16 && (i + j) < this.objectCodeSize; j++) {
-                s += String.format("%02X ", this.objectCode[i + j]);
-                if(j % 8 == 7) s += " ";
+        if(logFinest) {
+            LOG.finest("Object Code:");
+            for(int i = 0; i < this.objectCodeSize; i += 16) {
+                String s = "";
+                
+                for(int j = 0; j < 16 && (i + j) < this.objectCodeSize; j++) {
+                    s += String.format("%02X ", this.objectCode[i + j]);
+                    if(j % 8 == 7) s += " ";
+                }
+                
+                LOG.finest(s);
             }
-            
-            LOG.finest(s);
         }
         
-        LOG.fine("Read successfully");
+        LOG.fine("Read successfully (" + this.objectCodeSize + " code bytes)");
     }
     
     /**
@@ -319,6 +338,12 @@ public class RelocatableObject {
     public byte[] asObjectFile() {
         LOG.fine("Converting " + this.name + " to writable object file (" + this.objectCodeSize + " code bytes)");
         LOG.finer("Calculating file size");
+        
+        Logger logp = LOG;
+        if(LOG.getLevel() == null) while((logp = logp.getParent()).getLevel() == null);
+        
+        boolean logFinest = logp.getLevel() == Level.FINEST,
+                logFiner = logp.getLevel() == Level.FINER || logFinest;
         
         // header size
         int totalSize = 9 + this.sectionSizeWidth + this.nameLength,
@@ -380,21 +405,21 @@ public class RelocatableObject {
         // endianness
         buffer.put((byte)((this.fileEndianness == Endianness.BIG) ? 1 : 0));
         buffer.put((byte)((this.objectEndianness == Endianness.BIG) ? 1 : 0));
-        LOG.finest(String.format("File endiannesses are %s and %s. Output %02X and %02X", this.fileEndianness, this.objectEndianness, getFrom(buffer, 2), getFrom(buffer, 1)));
+        if(logFinest) LOG.finest(String.format("File endiannesses are %s and %s. Output %02X and %02X", this.fileEndianness, this.objectEndianness, getFrom(buffer, 2), getFrom(buffer, 1)));
         
         // sizes
         buffer.put((byte)(this.sectionSizeWidth & 0xFF));
-        LOG.finest(String.format("Section size width %02X", getFrom(buffer, 1)));
+        if(logFinest) LOG.finest(String.format("Section size width %02X", getFrom(buffer, 1)));
         
-        String s = putBytes(buffer, this.sectionSizeWidth, this.objectCodeSize);
+        String s = putBytes(buffer, this.sectionSizeWidth, this.objectCodeSize, logFinest);
         LOG.finest("Object code size " + s);
         
         buffer.put((byte)(incomingTableCount + outgoingTableCount));
-        LOG.finest(String.format("Table count %02X", getFrom(buffer, 1)));
+        if(logFinest) LOG.finest(String.format("Table count %02X", getFrom(buffer, 1)));
         
         // name
         buffer.put((byte)(this.nameLength & 0xFF));
-        LOG.finest(String.format("Name length %02X", getFrom(buffer, 1)));
+        if(logFinest) LOG.finest(String.format("Name length %02X", getFrom(buffer, 1)));
         
         buffer.put(this.name.getBytes());
         LOG.finest("Output name " + this.name);
@@ -405,13 +430,13 @@ public class RelocatableObject {
         Iterator<String> referenceIterator = this.outgoingReferences.keySet().iterator();
         
         for(int t = 0; t < outgoingTableCount; t++) {
-            LOG.finer("Writing outgoing table " + t);
+            if(logFiner) LOG.finer("Writing outgoing table " + t);
             
             // table header
             buffer.put((byte) 0);
             buffer.put((byte) outgoingReferenceWidth);
-            s = putBytes(buffer, this.sectionSizeWidth, (t < outgoingTableCount - 1) ? maxTableSize : (this.outgoingReferences.size() % maxTableSize));
-            LOG.finest(String.format("Table header %02X %02X %s", getFrom(buffer, this.sectionSizeWidth + 2), getFrom(buffer, this.sectionSizeWidth + 1), s));
+            s = putBytes(buffer, this.sectionSizeWidth, (t < outgoingTableCount - 1) ? maxTableSize : (this.outgoingReferences.size() % maxTableSize), logFinest);
+            if(logFinest) LOG.finest(String.format("Table header %02X %02X %s", getFrom(buffer, this.sectionSizeWidth + 2), getFrom(buffer, this.sectionSizeWidth + 1), s));
             
             // entries
             for(int i = 0; i < maxTableSize && ((t * maxTableSize) + i) < this.outgoingReferences.size(); i++) {
@@ -423,9 +448,9 @@ public class RelocatableObject {
                 buffer.put(entryName.getBytes());
                 
                 // value
-                s = putBytes(buffer, outgoingReferenceWidth, this.outgoingReferences.get(entryName));
+                s = putBytes(buffer, outgoingReferenceWidth, this.outgoingReferences.get(entryName), logFinest);
                 
-                LOG.finest(String.format("Table entry %02X %s %s", getFrom(buffer, outgoingReferenceWidth + entryName.length() + 1), entryName, s));
+                if(logFinest) LOG.finest(String.format("Table entry %02X %s %s", getFrom(buffer, outgoingReferenceWidth + entryName.length() + 1), entryName, s));
             }
         }
         
@@ -435,13 +460,13 @@ public class RelocatableObject {
         referenceIterator = this.incomingReferences.keySet().iterator();
         
         for(int t = 0; t < incomingTableCount; t++) {
-            LOG.finer("Writing incoming table " + t);
+            if(logFiner) LOG.finer("Writing incoming table " + t);
             
             // table header
             buffer.put((byte) 1);
             buffer.put((byte) incomingReferenceWidth);
-            s = putBytes(buffer, this.sectionSizeWidth, (t < incomingTableCount - 1) ? maxTableSize : (this.incomingReferences.size() % maxTableSize));
-            LOG.finest(String.format("Table header %02X %02X %s", getFrom(buffer, this.sectionSizeWidth + 2), getFrom(buffer, this.sectionSizeWidth + 1), s));
+            s = putBytes(buffer, this.sectionSizeWidth, (t < incomingTableCount - 1) ? maxTableSize : (this.incomingReferences.size() % maxTableSize), logFinest);
+            if(logFinest) LOG.finest(String.format("Table header %02X %02X %s", getFrom(buffer, this.sectionSizeWidth + 2), getFrom(buffer, this.sectionSizeWidth + 1), s));
             
             // entries
             for(int i = 0; i < maxTableSize && ((t * maxTableSize) + i) < this.incomingReferences.size(); i++) {
@@ -455,10 +480,10 @@ public class RelocatableObject {
                 // values
                 List<Integer> values = this.incomingReferences.get(entryName);
                 
-                s = putBytes(buffer, this.sectionSizeWidth, values.size());
-                String s1 = putAllBytes(buffer, incomingReferenceWidth, values);
+                s = putBytes(buffer, this.sectionSizeWidth, values.size(), logFinest);
+                String s1 = putAllBytes(buffer, incomingReferenceWidth, values, logFinest);
                 
-                LOG.finest(String.format("Table entry %02X %s %s %s", getFrom(buffer, (incomingReferenceWidth * values.size()) + entryName.length() + this.sectionSizeWidth + 1), entryName, s, s1));
+                if(logFinest) LOG.finest(String.format("Table entry %02X %s %s %s", getFrom(buffer, (incomingReferenceWidth * values.size()) + entryName.length() + this.sectionSizeWidth + 1), entryName, s, s1));
             }
         }
         
@@ -468,7 +493,7 @@ public class RelocatableObject {
         buffer.put(this.objectCode);
         LOG.finest("Wrote object code");
         
-        LOG.finer(String.format("Allocated %s bytes. Wrote %s bytes.", buffer.capacity(), buffer.position()));
+        if(logFiner) LOG.finer(String.format("Allocated %s bytes. Wrote %s bytes.", buffer.capacity(), buffer.position()));
         
         return buffer.array();
     }
@@ -491,7 +516,7 @@ public class RelocatableObject {
      * @param num
      * @return logging string
      */
-    private String putBytes(ByteBuffer buff, int length, int num) {
+    private String putBytes(ByteBuffer buff, int length, int num, boolean log) {
         String logString = "";
         
         // reverse endianness
@@ -507,7 +532,7 @@ public class RelocatableObject {
         for(int i = 0; i < length; i++) {
             byte b = (byte)(0xFF & (num >> (i * 8)));
             buff.put(b);
-            logString += String.format("%02X", b); 
+            if(log) logString += String.format("%02X", b); 
         }
         
         return logString;
@@ -521,11 +546,12 @@ public class RelocatableObject {
      * @param nums
      * @return logging string
      */
-    private String putAllBytes(ByteBuffer buff, int length, List<Integer> nums) {
+    private String putAllBytes(ByteBuffer buff, int length, List<Integer> nums, boolean log) {
         String s = "";
         
         for(int i : nums ) {
-            s += putBytes(buff, length, i) + " ";
+            if(log) s += putBytes(buff, length, i, log) + " ";
+            else putBytes(buff, length, i, log);
         }
         
         return s;
@@ -535,6 +561,11 @@ public class RelocatableObject {
      * @return The object's name
      */
     public String getName() { return this.name; }
+    public HashMap<String, List<Integer>> getIncomingReferences() { return this.incomingReferences; };
+    public HashMap<String, Integer> getOutgoingReferences() { return this.outgoingReferences; };
+    public HashMap<String, Integer> getIncomingReferenceWidths() { return this.incomingReferenceWidths; };
+    public HashMap<String, Integer> getOutgoingReferenceWidths() { return this.outgoingReferenceWidths; };
+    public byte[] getObjectCode() { return this.objectCode; }
     
     /**
      * @return True if this object was loaded from an object file

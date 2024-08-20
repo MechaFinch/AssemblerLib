@@ -16,6 +16,7 @@ import java.util.Set;
 public class RenameableRelocatableObject extends RelocatableObject {
     
     HashMap<File, String> libaryMap;
+    //boolean hasRenamedLibrary = false;
     
     /**
      * Direct creation constructor
@@ -76,7 +77,7 @@ public class RenameableRelocatableObject extends RelocatableObject {
      * @param f
      * @param name
      */
-    public void renameLibrary(File f, String name) {
+    public void renameLibraryFile(File f, String name) {
         if(!this.libaryMap.containsKey(f)) return;
         
         String key = this.libaryMap.get(f);
@@ -95,6 +96,53 @@ public class RenameableRelocatableObject extends RelocatableObject {
                 this.incomingReferences.put(s, refs);
                 this.incomingReferenceWidths.put(s, len);
             }
+        }
+    }
+    
+    /**
+     * 
+     * @param oldName
+     * @param newName
+     */
+    public void renameLibrary(String oldName, String newName) {
+        // old name sets
+        Set<String> incoming = new HashSet<>(this.incomingReferences.keySet()),
+                    outgoing = new HashSet<>(this.outgoingReferences.keySet());
+        
+        // rename incoming
+        for(String on : incoming) {
+            int idx = on.indexOf('.');
+            String library = on.substring(0, idx),
+                   reference = on.substring(idx);
+            
+            if(library.equals(oldName)) {
+                String nn = newName + reference;
+                renameMap(this.incomingReferences, on, nn);
+                renameMap(this.incomingReferenceWidths, on, nn);
+            }
+        }
+        
+        // rename outgoing
+        if(oldName.equals(this.name)) {
+            for(String on : outgoing) {
+                if(!on.contains(".")) continue;
+                
+                int idx = on.indexOf('.');
+                String library = on.substring(0, idx),
+                       reference = on.substring(idx);
+                
+                if(library.equals(oldName)) {
+                    String nn = newName + reference;
+                    renameMap(this.outgoingReferences, on, nn);
+                    renameMap(this.outgoingReferenceWidths, on, nn);
+                }
+            }
+        }
+        
+        // rename file if needed
+        if(this.name.equals(oldName)) {
+            this.name = newName;
+            this.nameLength = newName.length();
         }
     }
     

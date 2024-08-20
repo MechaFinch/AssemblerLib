@@ -2,11 +2,11 @@ package asmlib.util;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.logging.Logger;
 
 /**
  * A utility for locating files.
@@ -15,6 +15,8 @@ import java.util.List;
  * @author Mechafinch
  */
 public class FileLocator {
+    
+    private static Logger LOG = Logger.getLogger(FileLocator.class.getName());
     
     private Path workingDirectory,
                  libraryDirectory;
@@ -25,19 +27,22 @@ public class FileLocator {
     
     private boolean hasStandard;
     
-    List<String> extensions;
+    List<String> extensions,
+                 headerExtensions;
     
     /**
      * Full constructor
      * 
      * @param workingDirectory Directory of the current file
      * @param libraryDirectory Directory of the standard library
-     * @param extensions List of extensions to add to files without extensions. These should contain the . 
+     * @param extensions List of extensions to add to files without extensions. These should contain the .
+     * @param headerExtensions List of extensions to use when looking for corresponding header files 
      */
-    public FileLocator(Path workingDirectory, Path libraryDirectory, List<String> extensions) {
+    public FileLocator(Path workingDirectory, Path libraryDirectory, List<String> extensions, List<String> headerExtensions) {
         this.workingDirectory = workingDirectory;
         this.libraryDirectory = libraryDirectory.toAbsolutePath();
         this.extensions = extensions;
+        this.headerExtensions = headerExtensions;
         
         this.unconsumedFiles = new ArrayDeque<>();
         this.knownFiles = new ArrayList<>();
@@ -50,8 +55,8 @@ public class FileLocator {
      * @param workingDirectory
      * @param extensions
      */
-    public FileLocator(Path workingDirectory, List<String> extensions) {
-        this(workingDirectory, null, extensions);
+    public FileLocator(Path workingDirectory, List<String> extensions, List<String> headerExtensions) {
+        this(workingDirectory, null, extensions, headerExtensions);
         this.hasStandard = false;
     }
     
@@ -66,6 +71,49 @@ public class FileLocator {
         } else {
             this.workingDirectory = workingDir.getParent();
         }
+        
+        LOG.finer(() -> "Working directory is now " + this.workingDirectory);
+    }
+    
+    /**
+     * Returns the header file associsated with the given file
+     * 
+     * @param file
+     * @return header file or null
+     */
+    public Path getHeaderFile(Path file) {
+        LOG.fine("Getting header for " + file);
+        
+        Path p;
+        
+        if(file.getFileName().toString().contains(".")) {
+            // has extension - remove
+            String fn = file.getFileName().toString();
+            file = file.resolveSibling(fn.substring(fn.lastIndexOf('.')));
+        }
+        
+        // working
+        for(String extension : this.headerExtensions) {
+            Path p2 = file.resolveSibling(file.getFileName() + extension);
+            if(Files.exists(p = this.workingDirectory.resolve(p2))) {
+                LOG.finest("Found file in working directory: " + p);
+                return p;
+            }
+        }
+        
+        // library
+        if(this.hasStandard) {
+            for(String extension : this.headerExtensions) {
+                Path p2 = file.resolveSibling(file.getFileName() + extension);
+                if(Files.exists(p = this.libraryDirectory.resolve(p2))) {
+                    LOG.finest("Found file in standard library: " + p);
+                    return p;
+                }
+            }
+        }
+        
+        LOG.fine("Could not find file.");
+        return null;
     }
     
     /**
@@ -75,30 +123,50 @@ public class FileLocator {
      * @return full file or null
      */
     public Path getSourceFile(Path file) {
+        LOG.fine(() -> "Getting source for " + file);
+        
         Path p;
         
         if(file.getFileName().toString().contains(".")) {
             // file has an extension, search
-            if(file.isAbsolute()) return file;
-            if(Files.exists(p = this.workingDirectory.resolve(file))) return p;
-            if(this.hasStandard && Files.exists(p = this.libraryDirectory.resolve(file))) return p;
+            if(file.isAbsolute()) {
+                LOG.finest("File was absolute.");
+                return file;
+            }
+            
+            if(Files.exists(p = this.workingDirectory.resolve(file))) {
+                LOG.finest("Found file in working directory: " + p);
+                return p;
+            }
+            
+            if(this.hasStandard && Files.exists(p = this.libraryDirectory.resolve(file))) {
+                LOG.finest("Found file in standard library: " + p);
+                return p;
+            }
         } else {
             // file does not have an extension. do partial searches with each extension
             // working
             for(String extension : this.extensions) {
                 Path p2 = file.resolveSibling(file.getFileName() + extension);
-                if(Files.exists(p = this.workingDirectory.resolve(p2))) return p;
+                if(Files.exists(p = this.workingDirectory.resolve(p2))) {
+                    LOG.finest("Found file in working directory: " + p);
+                    return p;
+                }
             }
             
             // library
             if(this.hasStandard) {
                 for(String extension : this.extensions) {
                     Path p2 = file.resolveSibling(file.getFileName() + extension);
-                    if(Files.exists(p = this.libraryDirectory.resolve(p2))) return p;
+                    if(Files.exists(p = this.libraryDirectory.resolve(p2))) {
+                        LOG.finest("Found file in standard library: " + p);
+                        return p;
+                    }
                 }
             }
         }
         
+        LOG.fine("Could not find file.");
         return null;
     }
     
@@ -109,16 +177,29 @@ public class FileLocator {
      * @return true if the file was found, false if it was not found
      */
     public boolean addFile(Path file) {
+        LOG.fine(() -> "Adding file " + file);
+        
+        // do we already have it
+        if(this.hasFile(file)) {
+            LOG.finer("File already added");
+            return true;
+        }
+        
         if(file.getFileName().toString().contains(".")) {
             // file has an extension, do full search
-            if(this.hasFile(file)) return true;
-            else if(file.isAbsolute()) {
+            if(file.isAbsolute()) {
+                LOG.finer(() -> "Added absolute file " + file);
                 this.knownFiles.add(file);
                 this.unconsumedFiles.add(file);
                 return true;
             }
             
-            return this.searchFile(file, true, true);
+            if(this.searchFile(file, true, true)) {
+                return true;
+            } else {
+                LOG.fine("Could not find file.");
+                return false;
+            }
         } else {
             // file does not have an extension. do partial searches with each extension
             // working
@@ -135,6 +216,7 @@ public class FileLocator {
                 }
             }
             
+            LOG.fine("Could not find file.");
             return false;
         }
     }
@@ -145,12 +227,25 @@ public class FileLocator {
      * @param file
      * @return
      */
-    private boolean hasFile(Path file) {
-        for(Path p : knownFiles) {
-            if(p.endsWith(file)) return true;
+    public boolean hasFile(Path file) {
+        // check extensions if not provided
+        if(file.getFileName().toString().contains(".")) {
+            // has extension, search
+            for(Path p : knownFiles) {
+                if(p.endsWith(file)) return true;
+            }
+            
+            return false;
+        } else {
+            // no extension, try them
+            for(String extension : this.extensions) {
+                Path p = file.resolveSibling(file.getFileName() + extension);
+                
+                if(this.hasFile(p)) return true;
+            }
+            
+            return false;
         }
-        
-        return false;
     }
     
     /**
@@ -165,6 +260,7 @@ public class FileLocator {
         Path p;
         if(working) {
             if(Files.exists(p = this.workingDirectory.resolve(file))) {
+                LOG.finer("Added file from working directory: " + p);
                 this.knownFiles.add(p);
                 this.unconsumedFiles.add(p);
                 return true;
@@ -173,6 +269,7 @@ public class FileLocator {
         
         if(library && this.hasStandard) {
             if(Files.exists(p = this.libraryDirectory.resolve(file))) {
+                LOG.finer("Added file from standard library: " + p);
                 this.knownFiles.add(p);
                 this.unconsumedFiles.add(p);
                 return true;

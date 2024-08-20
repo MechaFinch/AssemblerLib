@@ -447,7 +447,7 @@ public class Lexer {
         ArrayList<Symbol> symbols = new ArrayList<>();
         
         // lex away
-        while(!(this.tokens.peek() instanceof SpecialToken st && st.character() == ']')) {
+        while(hasNext() && !(this.tokens.peek() instanceof SpecialToken st && st.character() == ']')) {
             symbols.add(lexNextToken(true));
         }
         
