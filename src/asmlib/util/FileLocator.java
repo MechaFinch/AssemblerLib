@@ -1,6 +1,7 @@
 package asmlib.util;
 
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -79,9 +80,10 @@ public class FileLocator {
      * Returns the header file associsated with the given file
      * 
      * @param file
-     * @return header file or null
+     * @return header file
+     * @throws NoSuchFileException 
      */
-    public Path getHeaderFile(Path file) {
+    public Path getHeaderFile(Path file) throws NoSuchFileException {
         LOG.fine("Getting header for " + file);
         
         Path p;
@@ -113,16 +115,17 @@ public class FileLocator {
         }
         
         LOG.fine("Could not find file.");
-        return null;
+        throw new NoSuchFileException(file.toString());
     }
     
     /**
      * Returns the full file associated with the given file
      * 
      * @param file
-     * @return full file or null
+     * @return full file
+     * @throws NoSuchFileException 
      */
-    public Path getSourceFile(Path file) {
+    public Path getSourceFile(Path file) throws NoSuchFileException {
         LOG.fine(() -> "Getting source for " + file);
         
         Path p;
@@ -167,7 +170,7 @@ public class FileLocator {
         }
         
         LOG.fine("Could not find file.");
-        return null;
+        throw new NoSuchFileException(file.toString());
     }
     
     /**
